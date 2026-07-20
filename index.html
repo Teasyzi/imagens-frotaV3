@@ -626,6 +626,25 @@
         function changeUnit(unit) { activeUnit = unit; currentIndex = 0; render(true); }
         function setStep(i) { currentIndex = i; render(); }
 
+            document.getElementById('prev-btn').onclick = () => { 
+                if (currentIndex > 0) { 
+                    currentIndex--; 
+                    render(); 
+                } 
+            };
+
+            // =========================================================================
+// CORREÇÃO DEFINITIVA: NAVEGAÇÃO ENTRE VEÍCULOS (SETAS DA TELA E TECLADO)
+// =========================================================================
+
+// Função utilitária que retorna a lista exatamente como ela aparece na barra lateral
+function getCurrentFilteredList() {
+    return fleetData[activeUnit]
+        .filter(t => t.id.includes(searchTerm))
+        .sort((a, b) => parseInt(a.id) - parseInt(b.id));
+}
+
+// Evento do botão Voltar (Seta Esquerda da tela)
 document.getElementById('prev-btn').onclick = () => { 
     if (currentIndex > 0) { 
         currentIndex--; 
@@ -633,16 +652,61 @@ document.getElementById('prev-btn').onclick = () => {
     } 
 };
 
+// Evento do botão Avançar (Seta Direita da tela)
 document.getElementById('next-btn').onclick = () => { 
-    const list = fleetData[activeUnit]
-        .filter(t => t.id.includes(searchTerm))
-        .sort((a, b) => parseInt(a.id) - parseInt(b.id)); 
-        
+    const list = getCurrentFilteredList(); 
     if (currentIndex < list.length - 1) { 
         currentIndex++; 
         render(); 
     } 
 };
+
+// Evento do Input de Pesquisa (Mantém a lista atualizada)
+document.getElementById('search-input').oninput = (e) => {
+    const val = e.target.value.trim(); 
+    searchTerm = val;
+    currentIndex = 0; // Reseta para o primeiro da pesquisa
+    
+    if (val.length >= 2) { 
+        for (const u in fleetData) { 
+            const idx = fleetData[u]
+                .filter(t => t.id.includes(val))
+                .sort((a, b) => parseInt(a.id) - parseInt(b.id))
+                .findIndex(t => t.id === val);
+                
+            if (idx !== -1) { 
+                activeUnit = u; 
+                currentIndex = idx; 
+                render(); 
+                return; 
+            } 
+        } 
+    } 
+    render();
+};
+
+window.addEventListener('keydown', (e) => {
+    if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+
+    if (e.key === 'Escape') {
+        if (document.body.classList.contains('comparison-active')) { 
+            toggleComparison(); 
+            return; 
+        }
+        document.getElementById('lightbox-modal').style.display = 'none';
+    }
+    else if (e.key.toLowerCase() === 'c') { 
+        toggleComparison(); 
+    }
+    else if (e.key === 'ArrowRight') {
+        // Dispara exatamente o clique da seta direita corrigido
+        document.getElementById('next-btn').click();
+    }
+    else if (e.key === 'ArrowLeft') {
+        // Dispara exatamente o clique da seta esquerda corrigido
+        document.getElementById('prev-btn').click();
+    }
+});
         document.getElementById('search-input').oninput = (e) => {
             const val = e.target.value.trim(); searchTerm = val;
             if (val.length >= 2) { for (const u in fleetData) { const idx = fleetData[u].findIndex(t => t.id === val); if (idx !== -1) { activeUnit = u; currentIndex = idx; render(); return; } } }
