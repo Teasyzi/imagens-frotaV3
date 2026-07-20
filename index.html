@@ -9,7 +9,6 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
-    <!-- SDKs do Firebase (Versão Compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -44,7 +43,6 @@
 
 <body class="bg-[#F8FAFC] text-slate-900 h-screen flex flex-col">
 
-    <!-- Modal de Login do ADM -->
     <div id="login-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] hidden flex items-center justify-center">
         <div class="bg-white p-6 rounded-2xl shadow-2xl w-80 flex flex-col gap-4">
             <h3 class="font-black text-xs uppercase tracking-wider text-slate-900">Login Administrativo</h3>
@@ -120,10 +118,8 @@
             </div>
             <h1 class="text-[9px] sm:text-xs font-black uppercase tracking-widest text-white leading-none">CB DISTRIBUIDORA DE BEBIDAS</h1>
             
-            <!-- CONTROLE DINÂMICO DOS ANOS -->
             <div class="flex items-center gap-1.5 ml-4 bg-black/20 px-2 py-1 rounded-lg">
                 <select id="year-selector" onchange="changeYear(this.value)" class="bg-transparent text-white font-black text-[11px] outline-none border-none cursor-pointer tracking-wider uppercase">
-                    <!-- Inserido dinamicamente -->
                 </select>
                 <button id="btn-add-year" onclick="addNewYear()" class="hidden text-green-400 hover:text-green-300 font-bold text-[10px] ml-1 uppercase tracking-tight">+ Ano</button>
             </div>
@@ -204,9 +200,6 @@
     </main>
 
     <script>
-        // =========================================================================
-        // 1. INSERIR AS SUAS CREDENCIAIS DO BANCO DO FIREBASE AQUI:
-        // =========================================================================
         const firebaseConfig = {
             apiKey: "AIzaSyCq7gTAuPBaY3qdk-Q8oX8hG-t5apsBELE",
             authDomain: "imagens-frota.firebaseapp.com",
@@ -221,7 +214,6 @@
         const db = firebase.firestore();
         const auth = firebase.auth();
 
-        // 2. CHAVE DA API DO IMGBB
         const IMGBB_API_KEY = "8b31673bd19288bca4fcd1093e07d9f1";
 
         const cycleInfo = [
@@ -298,7 +290,6 @@
             });
         }
 
-        // ADICIONAR ANO NOVO COM A OPÇÃO DE CLONAGEM ESTRUTURAL
         async function addNewYear() {
             if (!isAdmin) return;
             const newYear = prompt("Digite o novo Ano que deseja gerenciar (Ex: 2026):");
@@ -316,7 +307,6 @@
                 try {
                     const snapshot = await db.collection("fleet").where("year", "==", baseYear).get();
                     
-                    // Executa a gravação em lote de forma sequencial no Firestore
                     for (const doc of snapshot.docs) {
                         const originalData = doc.data();
                         const truckId = doc.id.split("_")[1];
@@ -328,7 +318,7 @@
                             active: originalData.active || [true, true, true],
                             transfer: originalData.transfer || "",
                             notes: originalData.notes || "",
-                            images: {} // As imagens nascem limpas/vazias
+                            images: {} 
                         });
                     }
                     alert(`Lista de veículos clonada com sucesso para ${newYear}!`);
@@ -635,9 +625,24 @@
 
         function changeUnit(unit) { activeUnit = unit; currentIndex = 0; render(true); }
         function setStep(i) { currentIndex = i; render(); }
-        document.getElementById('prev-btn').onclick = () => { if (currentIndex > 0) { currentIndex--; render(); } };
-        document.getElementById('next-btn').onclick = () => { const list = fleetData[activeUnit].filter(t => t.id.includes(searchTerm)); if (currentIndex < list.length - 1) { currentIndex++; render(); } };
+
+document.getElementById('prev-btn').onclick = () => { 
+    if (currentIndex > 0) { 
+        currentIndex--; 
+        render(); 
+    } 
+};
+
+document.getElementById('next-btn').onclick = () => { 
+    const list = fleetData[activeUnit]
+        .filter(t => t.id.includes(searchTerm))
+        .sort((a, b) => parseInt(a.id) - parseInt(b.id)); 
         
+    if (currentIndex < list.length - 1) { 
+        currentIndex++; 
+        render(); 
+    } 
+};
         document.getElementById('search-input').oninput = (e) => {
             const val = e.target.value.trim(); searchTerm = val;
             if (val.length >= 2) { for (const u in fleetData) { const idx = fleetData[u].findIndex(t => t.id === val); if (idx !== -1) { activeUnit = u; currentIndex = idx; render(); return; } } }
