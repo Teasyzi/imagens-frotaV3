@@ -221,7 +221,7 @@
         const db = firebase.firestore();
         const auth = firebase.auth();
 
-        // 2. SUA CHAVE DE API DO IMGBB JÁ CONFIGURADA
+        // 2. CHAVE DA API DO IMGBB
         const IMGBB_API_KEY = "8b31673bd19288bca4fcd1093e07d9f1";
 
         const cycleInfo = [
@@ -239,7 +239,6 @@
         let isPdfCancelled = false;
         let isAdmin = false;
 
-        // Monitor do estado administrativo
         auth.onAuthStateChanged(user => {
             if (user) {
                 isAdmin = true;
@@ -257,10 +256,8 @@
             render();
         });
 
-        // Ouvinte em tempo real do Firestore que filtra por ANO selecionado
         let unsubscribeFleet = null;
         function loadDataFromFirebase() {
-            // Atualizar o seletor visual de anos na tela
             const yearSelector = document.getElementById('year-selector');
             yearSelector.innerHTML = availableYears.map(y => `<option value="${y}" ${y === activeYear ? 'selected' : ''} class="text-slate-900">${y}</option>`).join('');
             document.getElementById('label-title-year').innerText = `IMAGENS FROTA ${activeYear}`;
@@ -289,13 +286,11 @@
                 });
         }
 
-        // Puxar a lista global de anos cadastrados
         function loadYearsList() {
             db.collection("settings").doc("years").onSnapshot(doc => {
                 if (doc.exists && doc.data().list) {
                     availableYears = doc.data().list;
                 } else {
-                    // Inicializa se não existir no banco
                     db.collection("settings").doc("years").set({ list: ["2025"] });
                     availableYears = ["2025"];
                 }
@@ -303,19 +298,48 @@
             });
         }
 
-        // Adicionar Novo Ano (Apenas ADM)
+        // ADICIONAR ANO NOVO COM A OPÇÃO DE CLONAGEM ESTRUTURAL
         async function addNewYear() {
             if (!isAdmin) return;
             const newYear = prompt("Digite o novo Ano que deseja gerenciar (Ex: 2026):");
             if (!newYear || availableYears.includes(newYear)) return;
 
+            const baseYear = activeYear; 
+            const wantToClone = confirm(`Deseja clonar a lista de veículos de ${baseYear} para o novo ano ${newYear} (as imagens iniciarão vazias)?`);
+
             availableYears.push(newYear);
             availableYears.sort((a, b) => parseInt(a) - parseInt(b));
-
             await db.collection("settings").doc("years").set({ list: availableYears });
+
+            if (wantToClone) {
+                alert("Processando clonagem da lista de veículos, aguarde...");
+                try {
+                    const snapshot = await db.collection("fleet").where("year", "==", baseYear).get();
+                    
+                    // Executa a gravação em lote de forma sequencial no Firestore
+                    for (const doc of snapshot.docs) {
+                        const originalData = doc.data();
+                        const truckId = doc.id.split("_")[1];
+                        const newDocId = `${newYear}_${truckId}`;
+                        
+                        await db.collection("fleet").doc(newDocId).set({
+                            year: newYear,
+                            unit: originalData.unit,
+                            active: originalData.active || [true, true, true],
+                            transfer: originalData.transfer || "",
+                            notes: originalData.notes || "",
+                            images: {} // As imagens nascem limpas/vazias
+                        });
+                    }
+                    alert(`Lista de veículos clonada com sucesso para ${newYear}!`);
+                } catch (err) {
+                    alert("Erro ao clonar dados estruturais: " + err.message);
+                }
+            }
+
             activeYear = newYear;
+            currentIndex = 0;
             loadDataFromFirebase();
-            alert(`Ano ${newYear} criado com sucesso!`);
         }
 
         function changeYear(year) {
@@ -324,7 +348,6 @@
             loadDataFromFirebase();
         }
 
-        // Modal de Login
         function openLoginModal() {
             if (isAdmin) { auth.signOut(); } 
             else { document.getElementById('login-modal').classList.remove('hidden'); }
@@ -339,7 +362,6 @@
             } catch (error) { alert("Erro: " + error.message); }
         }
 
-        // Criar Veículo associado ao ano corrente
         async function addNewTruck() {
             const id = prompt("Digite o número do novo veículo:");
             if (!id) return;
@@ -382,7 +404,6 @@
             document.getElementById(`file-input-${cycleIdx}-${slotIdx}`).click();
         }
 
-        // Upload Direct to ImgBB
         async function handleFileUpload(input, cycleIdx, slotIdx, truckDocId) {
             const file = input.files[0];
             if (!file) return;
@@ -415,7 +436,6 @@
             }
         }
 
-        // Estrutura Visual Base do Site original
         function handleImgLoad(img) { img.classList.remove('opacity-0'); img.classList.add('opacity-100'); }
         function handleImgError(img) {
             img.style.display = 'none';
@@ -450,7 +470,6 @@
                 </label>`).join('');
         }
 
-        // PDF Builder integrado aos links dinâmicos
         const getImageData = async (url) => {
             try {
                 const response = await fetch(url);
