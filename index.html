@@ -711,6 +711,14 @@
         });
 
         function toggleFullscreen() { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); }
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(() => console.log('PWA Service Worker Ativo!'))
+                    .catch(err => console.log('Erro ao registrar PWA:', err));
+            });
+        }
         window.onload = loadYearsList;
     </script>
 </body>
