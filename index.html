@@ -467,11 +467,25 @@
             showToast(`Ciclo alterado!`);
         }
 
-        function triggerImageUpload(cycleIdx, slotIdx) {
-            if (!isAdmin) return;
-            document.getElementById(`file-input-${cycleIdx}-${slotIdx}`).click();
-        }
+function triggerImageUpload(cycleIdx, slotIdx) {
+    if (!isAdmin) return;
+    
+    const fileInput = document.getElementById(`file-input-${cycleIdx}-${slotIdx}`);
+    if (!fileInput) return;
 
+    // Reseta o valor anterior para não travar
+    fileInput.value = '';
+
+    // Remove ouvintes antigos para evitar múltiplos gatilhos acumulados
+    fileInput.oncancel = null;
+    
+    // Garante retorno do foco para a página se o usuário cancelar
+    fileInput.oncancel = () => {
+        document.body.focus();
+    };
+
+    fileInput.click();
+}
         function compressImage(file, maxWidth = 1000, quality = 0.75) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
