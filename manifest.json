@@ -1,7 +1,9 @@
 {
+  "id": "/cb-frota",
   "name": "CB - Imagens Frota",
   "short_name": "CB Frota",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#FFFFFF",
   "theme_color": "#E30613",
