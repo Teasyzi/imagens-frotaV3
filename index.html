@@ -38,9 +38,7 @@
         .comparison-active .header-info-wrapper { border-bottom: none !important; margin-bottom: 5px !important; }
         .comparison-active #cycles-grid { gap: 10px !important; height: calc(100vh - 60px) !important; }
         
-        /* Drag & Drop Styles */
         .drag-over-slot { border: 2px dashed #2563eb !important; background-color: #eff6ff !important; transform: scale(1.02); }
-        
         .img-placeholder-icon { opacity: 1; color: #cbd5e1; transition: opacity 0.3s; }
         img:not([src]), img[src=""], img[style*="display: none"] { opacity: 0 !important; visibility: hidden !important; width: 0 !important; height: 0 !important; }
         #options-menu { transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); z-index: 60; }
@@ -84,7 +82,7 @@
         <img id="lightbox-img" src="" class="max-w-[95%] max-h-[95%] object-contain rounded-lg shadow-2xl" alt="Visualização expandida">
     </div>
 
-    <button id="btn-open-menu" onclick="toggleMenu()" aria-label="Abrir menu de opções" class="fixed bottom-12 right-6 z-50 bg-slate-900 text-white p-2.5 rounded-full shadow-xl hover:bg-[#E30613] transition-all scale-90 hover:scale-100">
+    <button id="btn-open-menu" onclick="toggleMenu()" class="fixed bottom-12 right-6 z-50 bg-slate-900 text-white p-2.5 rounded-full shadow-xl hover:bg-[#E30613] transition-all scale-90 hover:scale-100">
         <i data-lucide="menu" class="w-4 h-4"></i>
     </button>
 
@@ -185,10 +183,19 @@
                                 </div>
                             </div>
                             
-                            <div id="adm-fields-container" class="hidden flex-1 max-w-xl ml-6 bg-slate-100 p-2 rounded-xl flex items-center gap-2">
-                                <input type="text" id="edit-transfer" placeholder="Texto de Transferência (Ex: RECEBIDO DA CB NORTE)" class="flex-1 p-1.5 text-[10px] font-bold border rounded bg-white">
-                                <input type="text" id="edit-notes" placeholder="Observações/Oficina (Ex: MANUTENÇÃO EM MAIO)" class="flex-1 p-1.5 text-[10px] font-bold border rounded bg-white">
-                                <button onclick="saveTruckMetadata()" class="bg-green-600 hover:bg-green-700 text-white font-black text-[9px] px-3 py-2 rounded-lg uppercase tracking-wider shadow-sm">Salvar</button>
+                            <!-- CONTROLES ADM DE EDIÇÃO, TRANSFERÊNCIA E EXCLUSÃO DO VEÍCULO -->
+                            <div id="adm-fields-container" class="hidden flex-1 max-w-2xl ml-4 bg-slate-100 p-2 rounded-xl flex items-center gap-2">
+                                <select id="edit-unit" title="Transferir de Unidade" class="p-1.5 text-[10px] font-bold border rounded bg-white text-slate-700 outline-none">
+                                    <option value="CB NORTE">CB NORTE</option>
+                                    <option value="CB SUL">CB SUL</option>
+                                    <option value="BARREIRAS">BARREIRAS</option>
+                                    <option value="JUAZEIRO">JUAZEIRO</option>
+                                    <option value="OT">OT</option>
+                                </select>
+                                <input type="text" id="edit-transfer" placeholder="Texto Transferência" class="flex-1 p-1.5 text-[10px] font-bold border rounded bg-white">
+                                <input type="text" id="edit-notes" placeholder="Observações" class="flex-1 p-1.5 text-[10px] font-bold border rounded bg-white">
+                                <button onclick="saveTruckMetadata()" class="bg-green-600 hover:bg-green-700 text-white font-black text-[9px] px-3 py-2 rounded-lg uppercase tracking-wider shadow-sm shrink-0">Salvar</button>
+                                <button onclick="deleteTruck()" class="bg-red-600 hover:bg-red-700 text-white font-black text-[9px] px-2.5 py-2 rounded-lg uppercase tracking-wider shadow-sm shrink-0" title="Excluir Veículo"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                             </div>
                         </div>
                     </div>
@@ -198,8 +205,8 @@
                             <span id="page-indicator" class="text-[10px] font-black text-slate-700 tabular-nums leading-none">0 de 0</span>
                         </div>
                         <div class="flex gap-1">
-                            <button id="prev-btn" aria-label="Veículo anterior" class="p-1.5 rounded-lg hover:bg-white text-slate-400 hover:text-[#E30613] transition-all"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
-                            <button id="next-btn" aria-label="Próximo veículo" class="p-1.5 rounded-lg bg-[#E30613] text-white shadow-lg hover:bg-red-700 transition-all"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+                            <button id="prev-btn" class="p-1.5 rounded-lg hover:bg-white text-slate-400 hover:text-[#E30613] transition-all"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                            <button id="next-btn" class="p-1.5 rounded-lg bg-[#E30613] text-white shadow-lg hover:bg-red-700 transition-all"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
                         </div>
                     </div>
                 </div>
@@ -280,6 +287,7 @@
                             fleetData[data.unit].push({
                                 id: doc.id.split("_")[1] || doc.id, 
                                 docId: doc.id,
+                                unit: data.unit,
                                 active: data.active || [true, true, true],
                                 transfer: data.transfer || "",
                                 notes: data.notes || "",
@@ -309,7 +317,7 @@
             if (!newYear || availableYears.includes(newYear)) return;
 
             const baseYear = activeYear; 
-            const wantToClone = confirm(`Deseja clonar a lista de veículos de ${baseYear} para o novo ano ${newYear} (as imagens iniciarão vazias)?`);
+            const wantToClone = confirm(`Deseja clonar a lista de veículos de ${baseYear} para o novo ano ${newYear}?`);
 
             availableYears.push(newYear);
             availableYears.sort((a, b) => parseInt(a) - parseInt(b));
@@ -375,16 +383,41 @@
             });
         }
 
+        // SALVAR OBSERVAÇÕES E TRANSFERIR DE UNIDADE
         async function saveTruckMetadata() {
             const list = getCurrentFilteredList();
             const truck = list[currentIndex];
             if (!truck) return;
 
+            const newUnit = document.getElementById('edit-unit').value;
+            const transferText = document.getElementById('edit-transfer').value;
+            const notesText = document.getElementById('edit-notes').value;
+
             await db.collection("fleet").doc(truck.docId).update({
-                transfer: document.getElementById('edit-transfer').value,
-                notes: document.getElementById('edit-notes').value
+                unit: newUnit,
+                transfer: transferText,
+                notes: notesText
             });
-            alert("Salvo com sucesso!");
+
+            if (newUnit !== activeUnit) {
+                alert(`Veículo ${truck.id} transferido para a unidade ${newUnit}!`);
+                currentIndex = 0;
+            } else {
+                alert("Salvo com sucesso!");
+            }
+        }
+
+        // EXCLUIR VEÍCULO COMPLETO
+        async function deleteTruck() {
+            const list = getCurrentFilteredList();
+            const truck = list[currentIndex];
+            if (!truck || !isAdmin) return;
+
+            if (confirm(`Atenção: Tem certeza que deseja apagar o veículo ${truck.id} do ano de ${activeYear}?`)) {
+                await db.collection("fleet").doc(truck.docId).delete();
+                currentIndex = 0;
+                render();
+            }
         }
 
         async function toggleCycleActive(cycleIdx, currentStatus) {
@@ -402,7 +435,6 @@
             document.getElementById(`file-input-${cycleIdx}-${slotIdx}`).click();
         }
 
-        // PROCESSAMENTO DE UPLOAD (COMPATÍVEL COM DRAG & DROP E FILE INPUT)
         async function uploadFileToSlot(file, cycleIdx, slotIdx, truckDocId) {
             if (!file) return;
 
@@ -438,18 +470,21 @@
             uploadFileToSlot(input.files[0], cycleIdx, slotIdx, truckDocId);
         }
 
-        // DELETAR IMAGEM (Apenas ADM)
+        // EXCLUSÃO DE IMAGEM 100% DIRETA (SEM POP-UP)
         async function deleteImage(e, cycleIdx, slotIdx, truckDocId) {
             e.stopPropagation();
-            if (!isAdmin || !confirm("Deseja realmente apagar esta imagem?")) return;
+            if (!isAdmin) return;
 
-            const imageKey = `images.c${cycleIdx}_s${slotIdx}`;
-            await db.collection("fleet").doc(truckDocId).update({
-                [imageKey]: firebase.firestore.FieldValue.delete()
-            });
+            try {
+                const imageKey = `images.c${cycleIdx}_s${slotIdx}`;
+                await db.collection("fleet").doc(truckDocId).update({
+                    [imageKey]: firebase.firestore.FieldValue.delete()
+                });
+            } catch (err) {
+                console.error("Erro ao apagar imagem:", err);
+            }
         }
 
-        // EVENTOS DE DRAG & DROP (ARRASTAR E SOLTAR)
         function handleDragOver(e) {
             e.preventDefault();
             if (!isAdmin) return;
@@ -513,6 +548,7 @@
             const truck = list[currentIndex] || list[0] || { id: "---", docId:"", active: [false, false, false], transfer:"", notes:"", images:{} };
             
             if (isAdmin && list.length > 0) {
+                document.getElementById('edit-unit').value = truck.unit || activeUnit;
                 document.getElementById('edit-transfer').value = truck.transfer || "";
                 document.getElementById('edit-notes').value = truck.notes || "";
             }
@@ -583,7 +619,6 @@
         function changeUnit(unit) { activeUnit = unit; currentIndex = 0; render(true); }
         function setStep(i) { currentIndex = i; render(); }
 
-        // NAVEGAÇÃO DE SETAS
         document.getElementById('prev-btn').onclick = () => { 
             if (currentIndex > 0) { currentIndex--; render(); } 
         };
