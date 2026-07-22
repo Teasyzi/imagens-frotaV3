@@ -183,15 +183,7 @@
                                 </div>
                             </div>
                             
-                            <!-- CONTROLES ADM DE EDIÇÃO, TRANSFERÊNCIA E EXCLUSÃO DO VEÍCULO -->
                             <div id="adm-fields-container" class="hidden flex-1 max-w-2xl ml-4 bg-slate-100 p-2 rounded-xl flex items-center gap-2">
-                                <select id="edit-unit" title="Transferir de Unidade" class="p-1.5 text-[10px] font-bold border rounded bg-white text-slate-700 outline-none">
-                                    <option value="CB NORTE">CB NORTE</option>
-                                    <option value="CB SUL">CB SUL</option>
-                                    <option value="BARREIRAS">BARREIRAS</option>
-                                    <option value="JUAZEIRO">JUAZEIRO</option>
-                                    <option value="OT">OT</option>
-                                </select>
                                 <input type="text" id="edit-transfer" placeholder="Texto Transferência" class="flex-1 p-1.5 text-[10px] font-bold border rounded bg-white">
                                 <input type="text" id="edit-notes" placeholder="Observações" class="flex-1 p-1.5 text-[10px] font-bold border rounded bg-white">
                                 <button onclick="saveTruckMetadata()" class="bg-green-600 hover:bg-green-700 text-white font-black text-[9px] px-3 py-2 rounded-lg uppercase tracking-wider shadow-sm shrink-0">Salvar</button>
@@ -236,13 +228,15 @@
 
         const IMGBB_API_KEY = "8b31673bd19288bca4fcd1093e07d9f1";
 
+        const ALL_UNITS = ["CB NORTE", "CB SUL", "BARREIRAS", "JUAZEIRO", "OT"];
+
         const cycleInfo = [
             { label: "1º CICLO", range: "Abril - Junho" },
             { label: "2º CICLO", range: "Julho - Setembro" },
             { label: "3º CICLO", range: "Outubro - Dezembro" }
         ];
 
-        let fleetData = { "CB NORTE": [], "CB SUL": [], "BARREIRAS": [], "JUAZEIRO": [], "OT": [] };
+        let rawFleetDocs = []; 
         let activeUnit = "CB NORTE";
         let activeYear = "2025"; 
         let availableYears = ["2025"];
@@ -279,21 +273,30 @@
             unsubscribeFleet = db.collection("fleet")
                 .where("year", "==", activeYear)
                 .onSnapshot(snapshot => {
-                    fleetData = { "CB NORTE": [], "CB SUL": [], "BARREIRAS": [], "JUAZEIRO": [], "OT": [] };
-                    
+                    rawFleetDocs = [];
                     snapshot.forEach(doc => {
                         const data = doc.data();
-                        if (fleetData[data.unit]) {
-                            fleetData[data.unit].push({
-                                id: doc.id.split("_")[1] || doc.id, 
-                                docId: doc.id,
-                                unit: data.unit,
-                                active: data.active || [true, true, true],
-                                transfer: data.transfer || "",
-                                notes: data.notes || "",
-                                images: data.images || {}
-                            });
+                        
+                        // Garante compatibilidade de estrutura de unidades por ciclo [C1, C2, C3]
+                        let cycleUnits = data.cycleUnits;
+                        if (!cycleUnits) {
+                            const defaultUnit = data.unit || "CB NORTE";
+                            cycleUnits = [
+                                data.active && data.active[0] ? defaultUnit : null,
+                                data.active && data.active[1] ? defaultUnit : null,
+                                data.active && data.active[2] ? defaultUnit : null
+                            ];
                         }
+
+                        rawFleetDocs.push({
+                            id: doc.id.split("_")[1] || doc.id,
+                            docId: doc.id,
+                            cycleUnits: cycleUnits,
+                            active: data.active || [true, true, true],
+                            transfer: data.transfer || "",
+                            notes: data.notes || "",
+                            images: data.images || {}
+                        });
                     });
                     render();
                 });
@@ -333,7 +336,7 @@
                         
                         await db.collection("fleet").doc(newDocId).set({
                             year: newYear,
-                            unit: originalData.unit,
+                            cycleUnits: originalData.cycleUnits || [originalData.unit, originalData.unit, originalData.unit],
                             active: originalData.active || [true, true, true],
                             transfer: originalData.transfer || "",
                             notes: originalData.notes || "",
@@ -375,7 +378,7 @@
             const fullDocId = `${activeYear}_${id}`;
             await db.collection("fleet").doc(fullDocId).set({
                 year: activeYear,
-                unit: activeUnit,
+                cycleUnits: [activeUnit, activeUnit, activeUnit],
                 active: [true, true, true],
                 transfer: "",
                 notes: "",
@@ -383,31 +386,18 @@
             });
         }
 
-        // SALVAR OBSERVAÇÕES E TRANSFERIR DE UNIDADE
         async function saveTruckMetadata() {
             const list = getCurrentFilteredList();
             const truck = list[currentIndex];
             if (!truck) return;
 
-            const newUnit = document.getElementById('edit-unit').value;
-            const transferText = document.getElementById('edit-transfer').value;
-            const notesText = document.getElementById('edit-notes').value;
-
             await db.collection("fleet").doc(truck.docId).update({
-                unit: newUnit,
-                transfer: transferText,
-                notes: notesText
+                transfer: document.getElementById('edit-transfer').value,
+                notes: document.getElementById('edit-notes').value
             });
-
-            if (newUnit !== activeUnit) {
-                alert(`Veículo ${truck.id} transferido para a unidade ${newUnit}!`);
-                currentIndex = 0;
-            } else {
-                alert("Salvo com sucesso!");
-            }
+            alert("Salvo com sucesso!");
         }
 
-        // EXCLUIR VEÍCULO COMPLETO
         async function deleteTruck() {
             const list = getCurrentFilteredList();
             const truck = list[currentIndex];
@@ -420,14 +410,19 @@
             }
         }
 
-        async function toggleCycleActive(cycleIdx, currentStatus) {
+        // ADM ALTERA UNIDADE DO CICLO ESPECÍFICO
+        async function setCycleUnit(cycleIdx, newUnit) {
             if (!isAdmin) return;
             const list = getCurrentFilteredList();
             const truck = list[currentIndex];
-            
-            let newActive = [...truck.active];
-            newActive[cycleIdx] = !currentStatus;
-            await db.collection("fleet").doc(truck.docId).update({ active: newActive });
+            if (!truck) return;
+
+            let updatedCycleUnits = [...truck.cycleUnits];
+            updatedCycleUnits[cycleIdx] = newUnit;
+
+            await db.collection("fleet").doc(truck.docId).update({
+                cycleUnits: updatedCycleUnits
+            });
         }
 
         function triggerImageUpload(cycleIdx, slotIdx) {
@@ -470,7 +465,6 @@
             uploadFileToSlot(input.files[0], cycleIdx, slotIdx, truckDocId);
         }
 
-        // EXCLUSÃO DE IMAGEM 100% DIRETA (SEM POP-UP)
         async function deleteImage(e, cycleIdx, slotIdx, truckDocId) {
             e.stopPropagation();
             if (!isAdmin) return;
@@ -485,23 +479,11 @@
             }
         }
 
-        function handleDragOver(e) {
-            e.preventDefault();
-            if (!isAdmin) return;
-            e.currentTarget.classList.add('drag-over-slot');
-        }
-
-        function handleDragLeave(e) {
-            e.preventDefault();
-            e.currentTarget.classList.remove('drag-over-slot');
-        }
-
+        function handleDragOver(e) { e.preventDefault(); if (isAdmin) e.currentTarget.classList.add('drag-over-slot'); }
+        function handleDragLeave(e) { e.preventDefault(); e.currentTarget.classList.remove('drag-over-slot'); }
         function handleDrop(e, cycleIdx, slotIdx, truckDocId) {
-            e.preventDefault();
-            e.currentTarget.classList.remove('drag-over-slot');
-            if (!isAdmin) return;
-
-            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            e.preventDefault(); e.currentTarget.classList.remove('drag-over-slot');
+            if (isAdmin && e.dataTransfer.files && e.dataTransfer.files[0]) {
                 uploadFileToSlot(e.dataTransfer.files[0], cycleIdx, slotIdx, truckDocId);
             }
         }
@@ -520,35 +502,42 @@
             lucide.createIcons();
         }
 
+        // RETORNA VEÍCULOS QUE POSSUEM AO MENOS 1 CICLO ATIVO NA UNIDADE SELECIONADA
         function getCurrentFilteredList() {
-            return fleetData[activeUnit]
-                .filter(t => t.id.includes(searchTerm))
-                .sort((a, b) => parseInt(a.id) - parseInt(b.id));
+            return rawFleetDocs.filter(truck => {
+                const matchesSearch = truck.id.includes(searchTerm);
+                const hasCycleInUnit = truck.cycleUnits && truck.cycleUnits.includes(activeUnit);
+                return matchesSearch && hasCycleInUnit;
+            }).sort((a, b) => parseInt(a.id) - parseInt(b.id));
         }
 
         function updatePDFList() {
             const unit = document.getElementById('pdf-unit-filter').value;
             const container = document.getElementById('pdf-truck-selection');
             let list = [];
-            if (unit === "TODAS AS UNIDADES") { Object.keys(fleetData).forEach(u => fleetData[u].forEach(t => list.push({ ...t, unit: u }))); }
-            else { list = fleetData[unit].map(t => ({ ...t, unit: unit })); }
+            
+            if (unit === "TODAS AS UNIDADES") {
+                list = [...rawFleetDocs];
+            } else {
+                list = rawFleetDocs.filter(t => t.cycleUnits && t.cycleUnits.includes(unit));
+            }
+            
             list.sort((a, b) => parseInt(a.id) - parseInt(b.id));
             container.innerHTML = list.map(t => `
                 <label class="flex items-center gap-3 p-2 hover:bg-slate-100 rounded-lg cursor-pointer transition-all">
-                    <input type="checkbox" data-unit="${t.unit}" value="${t.id}" class="pdf-checkbox w-4 h-4 accent-[#E30613] rounded">
+                    <input type="checkbox" data-unit="${unit}" value="${t.id}" class="pdf-checkbox w-4 h-4 accent-[#E30613] rounded">
                     <div class="flex flex-col">
                         <span class="text-[11px] font-black text-slate-700 tracking-tighter">${t.id}</span>
-                        <span class="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">${t.unit}</span>
+                        <span class="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">${unit}</span>
                     </div>
                 </label>`).join('');
         }
 
         function render(isUnitJump = false) {
             const list = getCurrentFilteredList();
-            const truck = list[currentIndex] || list[0] || { id: "---", docId:"", active: [false, false, false], transfer:"", notes:"", images:{} };
+            const truck = list[currentIndex] || list[0] || { id: "---", docId:"", cycleUnits: [null, null, null], transfer:"", notes:"", images:{} };
             
             if (isAdmin && list.length > 0) {
-                document.getElementById('edit-unit').value = truck.unit || activeUnit;
                 document.getElementById('edit-transfer').value = truck.transfer || "";
                 document.getElementById('edit-notes').value = truck.notes || "";
             }
@@ -561,7 +550,7 @@
             const display = document.getElementById('main-display');
             if (isUnitJump) { display.classList.add('unit-jump-glow'); setTimeout(() => display.classList.remove('unit-jump-glow'), 1500); }
             
-            document.getElementById('unit-selector').innerHTML = Object.keys(fleetData).map(name => `<button onclick="changeUnit('${name}')" class="px-3 py-1.5 rounded-md transition-all ${activeUnit === name ? 'bg-white text-[#E30613] shadow-md scale-105' : 'text-white/60 hover:text-white'}">${name}</button>`).join('');
+            document.getElementById('unit-selector').innerHTML = ALL_UNITS.map(name => `<button onclick="changeUnit('${name}')" class="px-3 py-1.5 rounded-md transition-all ${activeUnit === name ? 'bg-white text-[#E30613] shadow-md scale-105' : 'text-white/60 hover:text-white'}">${name}</button>`).join('');
             document.getElementById('total-counter').innerText = `${list.length} veículos`;
             
             const truckList = document.getElementById('truck-list');
@@ -577,35 +566,47 @@
             if (truck.notes) notesContainer.innerHTML += `<div class="bg-slate-900 text-white px-4 py-0.5 rounded text-[10px] font-black uppercase"><i data-lucide="wrench" class="w-2.5 h-2.5 inline mr-1 text-[#E30613]"></i>${truck.notes}</div>`;
             
             document.getElementById('cycles-grid').innerHTML = [0, 1, 2].map(i => {
-                const isActive = truck.active[i];
+                const assignedUnit = truck.cycleUnits ? truck.cycleUnits[i] : null;
+                const isActiveInThisUnit = (assignedUnit === activeUnit);
                 const imgs = truck.images || {};
+                
                 return `
-                    <div class="flex flex-col rounded-3xl border-2 transition-all duration-500 overflow-hidden ${isActive ? 'bg-white border-slate-100 shadow-xl' : 'bg-slate-50 border-dashed border-slate-200 opacity-40 grayscale'}">
-                        <div onclick="toggleCycleActive(${i}, ${isActive})" class="px-4 py-2 border-b flex justify-between items-center ${isActive ? 'bg-[#E30613]/5' : ''} ${isAdmin ? 'cursor-pointer hover:bg-red-100' : ''}">
+                    <div class="flex flex-col rounded-3xl border-2 transition-all duration-500 overflow-hidden ${isActiveInThisUnit ? 'bg-white border-slate-100 shadow-xl' : 'bg-slate-50 border-dashed border-slate-200 opacity-30 grayscale'}">
+                        <div class="px-4 py-2 border-b flex justify-between items-center ${isActiveInThisUnit ? 'bg-[#E30613]/5' : 'bg-slate-100'}">
                             <div>
                                 <span class="text-[9px] font-black text-slate-800 uppercase tracking-widest">${cycleInfo[i].label}</span>
                                 <span class="text-[7px] font-bold text-slate-400 block italic">${cycleInfo[i].range}</span>
                             </div>
-                            ${isActive ? '<i data-lucide="check-circle-2" class="w-3 h-3 text-green-500"></i>' : ''}
+                            
+                            <!-- SELETOR ADM DE UNIDADE POR CICLO OU BADGE -->
+                            ${isAdmin ? `
+                                <select onchange="setCycleUnit(${i}, this.value)" class="text-[8px] font-bold border rounded px-1 py-0.5 bg-white text-slate-800 outline-none">
+                                    <option value="">(Nenhuma)</option>
+                                    ${ALL_UNITS.map(u => `<option value="${u}" ${u === assignedUnit ? 'selected' : ''}>${u}</option>`).join('')}
+                                </select>
+                            ` : `
+                                ${isActiveInThisUnit ? '<i data-lucide="check-circle-2" class="w-3 h-3 text-green-500"></i>' : `<span class="text-[7px] font-extrabold text-slate-400 uppercase italic">${assignedUnit ? 'EM ' + assignedUnit : 'INATIVO'}</span>`}
+                            `}
                         </div>
                         <div class="flex-1 p-2 grid grid-cols-2 grid-rows-2 gap-2 overflow-hidden">
                             ${[1, 2, 3, 4].map(s => {
                                 const imgUrl = imgs[`c${i}_s${s}`] || "";
+                                const canUpload = isAdmin && isActiveInThisUnit;
                                 return `
                                     <div id="slot-container-${i}-${s}" 
-                                         onclick="triggerImageUpload(${i}, ${s})" 
+                                         ${canUpload ? `onclick="triggerImageUpload(${i}, ${s})"` : ''} 
                                          ondragover="handleDragOver(event)" 
                                          ondragleave="handleDragLeave(event)" 
                                          ondrop="handleDrop(event, ${i}, ${s}, '${truck.docId}')"
-                                         class="image-slot bg-slate-100/80 rounded-2xl border relative group overflow-hidden ${isAdmin ? 'border-blue-300 hover:bg-blue-50 cursor-pointer' : ''} flex items-center justify-center shadow-sm">
+                                         class="image-slot bg-slate-100/80 rounded-2xl border relative group overflow-hidden ${canUpload ? 'border-blue-300 hover:bg-blue-50 cursor-pointer' : ''} flex items-center justify-center shadow-sm">
                                         
                                         ${imgUrl ? `<img src="${imgUrl}" onload="handleImgLoad(this)" onerror="handleImgError(this)" onclick="openZoom('${imgUrl}')" class="opacity-0 max-w-full max-h-full object-contain z-10" alt="Foto da frota">` : ''}
                                         
-                                        <i data-lucide="${isAdmin ? 'upload-cloud' : 'image'}" class="img-placeholder-icon absolute w-5 h-5 ${isAdmin ? 'text-blue-400' : 'text-slate-200'} z-0"></i>
+                                        <i data-lucide="${canUpload ? 'upload-cloud' : 'image'}" class="img-placeholder-icon absolute w-5 h-5 ${canUpload ? 'text-blue-400' : 'text-slate-200'} z-0"></i>
                                         
                                         ${isAdmin && imgUrl ? `<button onclick="deleteImage(event, ${i}, ${s}, '${truck.docId}')" title="Excluir imagem" class="absolute top-1.5 right-1.5 bg-red-600/90 hover:bg-red-700 text-white p-1 rounded-full z-30 transition-all shadow-md"><i data-lucide="trash-2" class="w-3 h-3"></i></button>` : ''}
                                         
-                                        ${isAdmin ? `<input type="file" id="file-input-${i}-${s}" accept="image/jpeg" class="hidden" onchange="handleFileUpload(this, ${i}, ${s}, '${truck.docId}')">` : ''}
+                                        ${canUpload ? `<input type="file" id="file-input-${i}-${s}" accept="image/jpeg" class="hidden" onchange="handleFileUpload(this, ${i}, ${s}, '${truck.docId}')">` : ''}
                                     </div>`;
                             }).join('')}
                         </div>
@@ -631,8 +632,10 @@
         document.getElementById('search-input').oninput = (e) => {
             const val = e.target.value.trim(); searchTerm = val; currentIndex = 0;
             if (val.length >= 2) { 
-                for (const u in fleetData) { 
-                    const idx = fleetData[u].filter(t => t.id.includes(val)).sort((a, b) => parseInt(a.id) - parseInt(b.id)).findIndex(t => t.id === val);
+                for (const u of ALL_UNITS) { 
+                    const idx = rawFleetDocs.filter(t => t.id.includes(val) && t.cycleUnits && t.cycleUnits.includes(u))
+                        .sort((a, b) => parseInt(a.id) - parseInt(b.id))
+                        .findIndex(t => t.id === val);
                     if (idx !== -1) { activeUnit = u; currentIndex = idx; render(); return; } 
                 } 
             }
