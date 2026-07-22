@@ -10,6 +10,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="manifest" href="manifest.json">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -214,14 +215,14 @@
 
     <script>
         const firebaseConfig = {
-  apiKey: "AIzaSyCq7gTAuPBaY3qdk-Q8oX8hG-t5apsBELE",
-  authDomain: "imagens-frota.firebaseapp.com",
-  projectId: "imagens-frota",
-  storageBucket: "imagens-frota.firebasestorage.app",
-  messagingSenderId: "159326049457",
-  appId: "1:159326049457:web:4a6161e934f215af347e90",
-  measurementId: "G-38FQCRH88B"
-};
+            apiKey: "AIzaSyCq7gTAuPBaY3qdk-Q8oX8hG-t5apsBELE",
+            authDomain: "imagens-frota.firebaseapp.com",
+            projectId: "imagens-frota",
+            storageBucket: "imagens-frota.firebasestorage.app",
+            messagingSenderId: "159326049457",
+            appId: "1:159326049457:web:4a6161e934f215af347e90",
+            measurementId: "G-38FQCRH88B"
+        };
         
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
@@ -243,6 +244,7 @@
         let searchTerm = "";
         let isPdfCancelled = false;
         let isAdmin = false;
+        let activeTruckSlots = {}; // Armazena as imagens da subcoleção em tempo real
 
         function showToast(message, type = 'success') {
             const container = document.getElementById('toast-container');
@@ -315,10 +317,28 @@
                             active: data.active || [true, true, true],
                             transfer: data.transfer || "",
                             notes: data.notes || "",
-                            images: data.images || {}
+                            legacyImages: data.images || {} // Suporte para migração/imagens antigas do ImgBB
                         });
                     });
                     render();
+                });
+        }
+
+        let unsubscribeSlots = null;
+        function listenToTruckSlots(truckDocId) {
+            if (unsubscribeSlots) unsubscribeSlots();
+            activeTruckSlots = {};
+
+            if (!truckDocId) return;
+
+            // Escuta a SUBCOLEÇÃO de imagens do veículo selecionado
+            unsubscribeSlots = db.collection("fleet").doc(truckDocId).collection("slots")
+                .onSnapshot(snapshot => {
+                    activeTruckSlots = {};
+                    snapshot.forEach(doc => {
+                        activeTruckSlots[doc.id] = doc.data().url || doc.data().base64;
+                    });
+                    renderSlotsGridOnly();
                 });
         }
 
@@ -336,11 +356,11 @@
 
         async function addNewYear() {
             if (!isAdmin) return;
-            const newYear = prompt("Digite o novo Ano (Ex: 202*):");
+            const newYear = prompt("Digite o novo Ano (Ex: 2026):");
             if (!newYear || availableYears.includes(newYear)) return;
 
             const baseYear = activeYear; 
-            const wantToClone = confirm(`Deseja adicionar a lista de veículos de ${baseYear} para o novo ano ${newYear}?`);
+            const wantToClone = confirm(`Deseja clonar os caminhões de ${baseYear} para ${newYear}?`);
 
             availableYears.push(newYear);
             availableYears.sort((a, b) => parseInt(a) - parseInt(b));
@@ -359,8 +379,7 @@
                             cycleUnits: originalData.cycleUnits || [originalData.unit, originalData.unit, originalData.unit],
                             active: originalData.active || [true, true, true],
                             transfer: originalData.transfer || "",
-                            notes: originalData.notes || "",
-                            images: {}
+                            notes: originalData.notes || ""
                         });
                     }
                 } catch (err) { showToast("Erro ao clonar dados", "error"); }
@@ -369,7 +388,7 @@
             activeYear = newYear;
             currentIndex = 0;
             loadDataFromFirebase();
-            showToast(`Ano ${newYear} criado com sucesso!`);
+            showToast(`Ano ${newYear} criado!`);
         }
 
         function changeYear(year) {
@@ -403,8 +422,7 @@
                 cycleUnits: [activeUnit, activeUnit, activeUnit],
                 active: [true, true, true],
                 transfer: "",
-                notes: "",
-                images: {}
+                notes: ""
             });
             showToast(`Veículo ${id} adicionado!`);
         }
@@ -454,7 +472,7 @@
             document.getElementById(`file-input-${cycleIdx}-${slotIdx}`).click();
         }
 
-        function compressImage(file, maxWidth = 1200, quality = 0.8) {
+        function compressImage(file, maxWidth = 1000, quality = 0.75) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.readAsDataURL(file);
@@ -484,6 +502,7 @@
             });
         }
 
+        // SALVA CADA FOTO COMO UM DOCUMENTO PRÓPRIO NA SUBCOLEÇÃO "SLOTS"
         async function uploadFileToSlot(file, cycleIdx, slotIdx, truckDocId) {
             if (!file) return;
 
@@ -498,18 +517,19 @@
 
             try {
                 const compressedBase64 = await compressImage(file);
+                const slotDocId = `c${cycleIdx}_s${slotIdx}`;
                 
-                const imageKey = `images.c${cycleIdx}_s${slotIdx}`;
-                await db.collection("fleet").doc(truckDocId).update({
-                    [imageKey]: compressedBase64
+                // Grava no documento individual da subcoleção /fleet/DOC_ID/slots/c0_s1
+                await db.collection("fleet").doc(truckDocId).collection("slots").doc(slotDocId).set({
+                    base64: compressedBase64,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
-                showToast("Imagem salva!");
+                showToast("Imagem salva com sucesso!");
             } catch (error) {
-                console.error("Erro no processamento da imagem:", error);
+                console.error("Erro no envio:", error);
                 showToast("Erro ao salvar imagem", "error");
                 if (container) container.innerHTML = originalHTML;
-                render();
             }
         }
 
@@ -524,10 +544,17 @@
             if (!isAdmin) return;
 
             try {
+                const slotDocId = `c${cycleIdx}_s${slotIdx}`;
+                
+                // Deleta a foto da subcoleção "slots"
+                await db.collection("fleet").doc(truckDocId).collection("slots").doc(slotDocId).delete();
+                
+                // Se for foto legada do ImgBB no documento pai, apaga também
                 const imageKey = `images.c${cycleIdx}_s${slotIdx}`;
                 await db.collection("fleet").doc(truckDocId).update({
                     [imageKey]: firebase.firestore.FieldValue.delete()
-                });
+                }).catch(() => {});
+
                 showToast("Imagem removida!");
             } catch (err) {
                 showToast("Erro ao remover", "error");
@@ -587,10 +614,17 @@
                 </label>`).join('');
         }
 
+        let currentTruckDocId = null;
+
         function render(isUnitJump = false) {
             const list = getCurrentFilteredList();
-            const truck = list[currentIndex] || list[0] || { id: "---", docId:"", cycleUnits: [null, null, null], transfer:"", notes:"", images:{} };
+            const truck = list[currentIndex] || list[0] || { id: "---", docId:"", cycleUnits: [null, null, null], transfer:"", notes:"" };
             
+            if (truck.docId !== currentTruckDocId) {
+                currentTruckDocId = truck.docId;
+                listenToTruckSlots(truck.docId);
+            }
+
             if (isAdmin && list.length > 0) {
                 document.getElementById('edit-transfer').value = truck.transfer || "";
                 document.getElementById('edit-notes').value = truck.notes || "";
@@ -619,10 +653,19 @@
             if (truck.transfer) notesContainer.innerHTML += `<div class="bg-red-600 text-white px-4 py-0.5 rounded shadow-sm text-[10px] font-black uppercase"><i data-lucide="arrow-right-left" class="w-2.5 h-2.5 inline mr-1"></i>${truck.transfer}</div>`;
             if (truck.notes) notesContainer.innerHTML += `<div class="bg-slate-900 text-white px-4 py-0.5 rounded text-[10px] font-black uppercase"><i data-lucide="wrench" class="w-2.5 h-2.5 inline mr-1 text-[#E30613]"></i>${truck.notes}</div>`;
             
+            renderSlotsGridOnly();
+            document.getElementById('pagination-dots').innerHTML = list.map((_, i) => `<div class="h-1 rounded-full ${currentIndex === i ? 'w-4 bg-[#E30613]' : 'w-1 bg-slate-200'}"></div>`).join('');
+            lucide.createIcons();
+        }
+
+        // RENDERIZA APENAS O GRID DE SLOTS RAPIDAMENTE
+        function renderSlotsGridOnly() {
+            const list = getCurrentFilteredList();
+            const truck = list[currentIndex] || { id: "---", docId:"", cycleUnits: [null, null, null], legacyImages:{} };
+
             document.getElementById('cycles-grid').innerHTML = [0, 1, 2].map(i => {
                 const assignedUnit = truck.cycleUnits ? truck.cycleUnits[i] : null;
                 const isActiveInThisUnit = (assignedUnit === activeUnit);
-                const imgs = truck.images || {};
                 
                 return `
                     <div class="flex flex-col rounded-3xl border-2 transition-all duration-500 overflow-hidden ${isActiveInThisUnit ? 'bg-white border-slate-100 shadow-xl' : 'bg-slate-50 border-dashed border-slate-200 opacity-30 grayscale'}">
@@ -643,7 +686,9 @@
                         </div>
                         <div class="flex-1 p-2 grid grid-cols-2 grid-rows-2 gap-2 overflow-hidden">
                             ${[1, 2, 3, 4].map(s => {
-                                const imgUrl = imgs[`c${i}_s${s}`] || "";
+                                const slotKey = `c${i}_s${s}`;
+                                // Busca primeiro na subcoleção nova e, se não achar, cai na imagem antiga do ImgBB
+                                const imgUrl = activeTruckSlots[slotKey] || (truck.legacyImages ? truck.legacyImages[slotKey] : "") || "";
                                 const canUpload = isAdmin && isActiveInThisUnit;
                                 return `
                                     <div id="slot-container-${i}-${s}" 
@@ -665,8 +710,6 @@
                         </div>
                     </div>`;
             }).join('');
-            
-            document.getElementById('pagination-dots').innerHTML = list.map((_, i) => `<div class="h-1 rounded-full ${currentIndex === i ? 'w-4 bg-[#E30613]' : 'w-1 bg-slate-200'}"></div>`).join('');
             lucide.createIcons();
         }
 
