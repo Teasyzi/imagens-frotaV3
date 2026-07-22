@@ -5,10 +5,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CB - Imagens Frota</title>
+    
+    <!-- Suporte PWA (Modo Aplicativo) -->
+    <meta name="theme-color" content="#E30613">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIkNCIC0gSW1hZ2VucyBGcm90YSIsCiAgInNob3J0X25hbWUiOiAiQ0IgRnJvdGEiLAogICJzdGFydF91cmwiOiAiLi8iLAogICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiNGRkZGRkYiLAogICJ0aGVtZV9jb2xvciI6ICIjRTMwNjEzIgp9">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
+    <!-- SDKs do Firebase (Versão Compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -29,6 +37,10 @@
         .comparison-active #current-id { font-size: 3rem !important; opacity: 0.3; margin-bottom: 0 !important; line-height: 1; }
         .comparison-active .header-info-wrapper { border-bottom: none !important; margin-bottom: 5px !important; }
         .comparison-active #cycles-grid { gap: 10px !important; height: calc(100vh - 60px) !important; }
+        
+        /* Drag & Drop Styles */
+        .drag-over-slot { border: 2px dashed #2563eb !important; background-color: #eff6ff !important; transform: scale(1.02); }
+        
         .img-placeholder-icon { opacity: 1; color: #cbd5e1; transition: opacity 0.3s; }
         img:not([src]), img[src=""], img[style*="display: none"] { opacity: 0 !important; visibility: hidden !important; width: 0 !important; height: 0 !important; }
         #options-menu { transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); z-index: 60; }
@@ -43,6 +55,7 @@
 
 <body class="bg-[#F8FAFC] text-slate-900 h-screen flex flex-col">
 
+    <!-- Modal de Login do ADM -->
     <div id="login-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] hidden flex items-center justify-center">
         <div class="bg-white p-6 rounded-2xl shadow-2xl w-80 flex flex-col gap-4">
             <h3 class="font-black text-xs uppercase tracking-wider text-slate-900">Login Administrativo</h3>
@@ -68,10 +81,10 @@
     </div>
 
     <div id="lightbox-modal" onclick="this.style.display='none'">
-        <img id="lightbox-img" src="" class="max-w-[95%] max-h-[95%] object-contain rounded-lg shadow-2xl">
+        <img id="lightbox-img" src="" class="max-w-[95%] max-h-[95%] object-contain rounded-lg shadow-2xl" alt="Visualização expandida">
     </div>
 
-    <button id="btn-open-menu" onclick="toggleMenu()" class="fixed bottom-12 right-6 z-50 bg-slate-900 text-white p-2.5 rounded-full shadow-xl hover:bg-[#E30613] transition-all scale-90 hover:scale-100">
+    <button id="btn-open-menu" onclick="toggleMenu()" aria-label="Abrir menu de opções" class="fixed bottom-12 right-6 z-50 bg-slate-900 text-white p-2.5 rounded-full shadow-xl hover:bg-[#E30613] transition-all scale-90 hover:scale-100">
         <i data-lucide="menu" class="w-4 h-4"></i>
     </button>
 
@@ -185,8 +198,8 @@
                             <span id="page-indicator" class="text-[10px] font-black text-slate-700 tabular-nums leading-none">0 de 0</span>
                         </div>
                         <div class="flex gap-1">
-                            <button id="prev-btn" class="p-1.5 rounded-lg hover:bg-white text-slate-400 hover:text-[#E30613] transition-all"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
-                            <button id="next-btn" class="p-1.5 rounded-lg bg-[#E30613] text-white shadow-lg hover:bg-red-700 transition-all"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+                            <button id="prev-btn" aria-label="Veículo anterior" class="p-1.5 rounded-lg hover:bg-white text-slate-400 hover:text-[#E30613] transition-all"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                            <button id="next-btn" aria-label="Próximo veículo" class="p-1.5 rounded-lg bg-[#E30613] text-white shadow-lg hover:bg-red-700 transition-all"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
                         </div>
                     </div>
                 </div>
@@ -303,10 +316,8 @@
             await db.collection("settings").doc("years").set({ list: availableYears });
 
             if (wantToClone) {
-                alert("Processando clonagem da lista de veículos, aguarde...");
                 try {
                     const snapshot = await db.collection("fleet").where("year", "==", baseYear).get();
-                    
                     for (const doc of snapshot.docs) {
                         const originalData = doc.data();
                         const truckId = doc.id.split("_")[1];
@@ -318,13 +329,10 @@
                             active: originalData.active || [true, true, true],
                             transfer: originalData.transfer || "",
                             notes: originalData.notes || "",
-                            images: {} 
+                            images: {}
                         });
                     }
-                    alert(`Lista de veículos clonada com sucesso para ${newYear}!`);
-                } catch (err) {
-                    alert("Erro ao clonar dados estruturais: " + err.message);
-                }
+                } catch (err) { alert("Erro ao clonar: " + err.message); }
             }
 
             activeYear = newYear;
@@ -368,7 +376,7 @@
         }
 
         async function saveTruckMetadata() {
-            const list = fleetData[activeUnit].filter(t => t.id.includes(searchTerm)).sort((a, b) => parseInt(a.id) - parseInt(b.id));
+            const list = getCurrentFilteredList();
             const truck = list[currentIndex];
             if (!truck) return;
 
@@ -381,7 +389,7 @@
 
         async function toggleCycleActive(cycleIdx, currentStatus) {
             if (!isAdmin) return;
-            const list = fleetData[activeUnit].filter(t => t.id.includes(searchTerm)).sort((a, b) => parseInt(a.id) - parseInt(b.id));
+            const list = getCurrentFilteredList();
             const truck = list[currentIndex];
             
             let newActive = [...truck.active];
@@ -394,13 +402,13 @@
             document.getElementById(`file-input-${cycleIdx}-${slotIdx}`).click();
         }
 
-        async function handleFileUpload(input, cycleIdx, slotIdx, truckDocId) {
-            const file = input.files[0];
+        // PROCESSAMENTO DE UPLOAD (COMPATÍVEL COM DRAG & DROP E FILE INPUT)
+        async function uploadFileToSlot(file, cycleIdx, slotIdx, truckDocId) {
             if (!file) return;
 
-            const container = input.closest('.image-slot');
-            const originalHTML = container.innerHTML; 
-            container.innerHTML = `<span class="text-[8px] font-bold text-slate-400 animate-pulse">ENVIANDO...</span>`;
+            const container = document.getElementById(`slot-container-${cycleIdx}-${slotIdx}`);
+            const originalHTML = container ? container.innerHTML : ""; 
+            if (container) container.innerHTML = `<span class="text-[8px] font-bold text-slate-400 animate-pulse">ENVIANDO...</span>`;
 
             const formData = new FormData();
             formData.append("image", file);
@@ -421,16 +429,50 @@
                 } else { throw new Error(result.error.message); }
             } catch (error) {
                 alert("Erro: " + error.message);
-                container.innerHTML = originalHTML;
+                if (container) container.innerHTML = originalHTML;
                 render();
             }
         }
 
-        function handleImgLoad(img) { img.classList.remove('opacity-0'); img.classList.add('opacity-100'); }
-        function handleImgError(img) {
-            img.style.display = 'none';
-            img.removeAttribute('src');
+        function handleFileUpload(input, cycleIdx, slotIdx, truckDocId) {
+            uploadFileToSlot(input.files[0], cycleIdx, slotIdx, truckDocId);
         }
+
+        // DELETAR IMAGEM (Apenas ADM)
+        async function deleteImage(e, cycleIdx, slotIdx, truckDocId) {
+            e.stopPropagation();
+            if (!isAdmin || !confirm("Deseja realmente apagar esta imagem?")) return;
+
+            const imageKey = `images.c${cycleIdx}_s${slotIdx}`;
+            await db.collection("fleet").doc(truckDocId).update({
+                [imageKey]: firebase.firestore.FieldValue.delete()
+            });
+        }
+
+        // EVENTOS DE DRAG & DROP (ARRASTAR E SOLTAR)
+        function handleDragOver(e) {
+            e.preventDefault();
+            if (!isAdmin) return;
+            e.currentTarget.classList.add('drag-over-slot');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over-slot');
+        }
+
+        function handleDrop(e, cycleIdx, slotIdx, truckDocId) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over-slot');
+            if (!isAdmin) return;
+
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                uploadFileToSlot(e.dataTransfer.files[0], cycleIdx, slotIdx, truckDocId);
+            }
+        }
+
+        function handleImgLoad(img) { img.classList.remove('opacity-0'); img.classList.add('opacity-100'); }
+        function handleImgError(img) { img.style.display = 'none'; }
         function openZoom(src) { if (!src || isAdmin) return; document.getElementById('lightbox-img').src = src; document.getElementById('lightbox-modal').style.display = 'flex'; }
         function toggleMenu() { const menu = document.getElementById('options-menu'); menu.classList.toggle('open'); if (menu.classList.contains('open')) updatePDFList(); }
 
@@ -441,6 +483,12 @@
                 ? `<i data-lucide="layout-list" class="w-3.5 h-3.5"></i> Sair Comparação (C)`
                 : `<i data-lucide="layout-grid" class="w-3.5 h-3.5"></i> Comparar Ciclos (C)`;
             lucide.createIcons();
+        }
+
+        function getCurrentFilteredList() {
+            return fleetData[activeUnit]
+                .filter(t => t.id.includes(searchTerm))
+                .sort((a, b) => parseInt(a.id) - parseInt(b.id));
         }
 
         function updatePDFList() {
@@ -460,109 +508,8 @@
                 </label>`).join('');
         }
 
-        const getImageData = async (url) => {
-            try {
-                const response = await fetch(url);
-                if (!response.ok) return null;
-                const blob = await response.blob();
-                return new Promise((resolve) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                        const img = new Image();
-                        img.onload = () => { resolve({ data: reader.result, ratio: img.width / img.height }); };
-                        img.onerror = () => resolve(null);
-                        img.src = reader.result;
-                    };
-                    reader.readAsDataURL(blob);
-                });
-            } catch (e) { return null; }
-        };
-
-        async function downloadCombinedPDF() {
-            const { jsPDF } = window.jspdf;
-            const checkboxes = Array.from(document.querySelectorAll('.pdf-checkbox:checked'));
-            if (checkboxes.length === 0) return alert("Selecione um veículo.");
-
-            const btn = document.getElementById('btn-generate-pdf');
-            const progCont = document.getElementById('global-progress-container');
-            const progBar = document.getElementById('global-progress-bar');
-            const progTxt = document.getElementById('progress-percent-text');
-
-            isPdfCancelled = false; btn.disabled = true; progCont.style.display = 'flex'; toggleMenu();
-
-            const doc = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4', compress: true });
-            const pageWidth = doc.internal.pageSize.getWidth();
-            const pageHeight = doc.internal.pageSize.getHeight();
-            let totalProcessed = 0;
-
-            const unitOrder = ["CB NORTE", "CB SUL", "BARREIRAS", "JUAZEIRO", "OT"];
-            const groupedTrucks = {};
-            checkboxes.forEach(cb => {
-                if (!groupedTrucks[cb.dataset.unit]) groupedTrucks[cb.dataset.unit] = [];
-                groupedTrucks[cb.dataset.unit].push(cb.value);
-            });
-
-            for (const currentUnit of unitOrder) {
-                if (isPdfCancelled || !groupedTrucks[currentUnit]) continue;
-
-                if (totalProcessed > 0) doc.addPage();
-                doc.setFillColor(227, 6, 19); doc.rect(0, 0, pageWidth, pageHeight, 'F');
-                doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(45);
-                doc.text(currentUnit, pageWidth / 2, pageHeight / 2, { align: 'center' });
-
-                for (const truckId of groupedTrucks[currentUnit].sort((a, b) => a - b)) {
-                    if (isPdfCancelled) break;
-                    const truck = fleetData[currentUnit].find(t => t.id === truckId);
-                    doc.addPage();
-
-                    doc.setFillColor(227, 6, 19); doc.rect(0, 0, pageWidth, 12, 'F');
-                    doc.setTextColor(255, 255, 255); doc.setFontSize(9);
-                    doc.text(`CB DISTRIBUIDORA DE BEBIDAS | ${currentUnit} | VEÍCULO ${truck.id} (${activeYear})`, 10, 8);
-
-                    const startY = 20; const colW = (pageWidth - 25) / 3;
-                    const imagePromises = [];
-                    
-                    for (let cIdx = 0; cIdx < 3; cIdx++) {
-                        if (truck.active[cIdx]) {
-                            for (let s = 1; s <= 4; s++) {
-                                const path = truck.images[`c${cIdx}_s${s}`];
-                                if(path) imagePromises.push(getImageData(path).then(res => ({ res, cIdx, sIdx: s - 1 })));
-                            }
-                        }
-                    }
-
-                    const imagesResults = await Promise.all(imagePromises);
-
-                    for (let cIdx = 0; cIdx < 3; cIdx++) {
-                        const x = 10 + (cIdx * (colW + 2.5));
-                        const active = truck.active[cIdx];
-
-                        doc.setDrawColor(241, 245, 249); doc.setFillColor(active ? 255 : 252, active ? 255 : 252, active ? 255 : 252);
-                        doc.roundedRect(x, startY, colW, 175, 3, 3, 'FD');
-                        doc.setTextColor(active ? 227 : 200, active ? 6 : 200, active ? 13 : 200);
-                        doc.text(cycleInfo[cIdx].label, x + 5, startY + 8);
-
-                        imagesResults.filter(img => img.cIdx === cIdx).forEach(imgObj => {
-                            if (imgObj.res) {
-                                const i = imgObj.sIdx; const slotW = (colW - 8) / 2; const slotH = 65;
-                                const imgX = x + 3 + (i % 2 * (slotW + 2)); const imgY = startY + 15 + (Math.floor(i / 2) * (slotH + 5));
-                                let drawW = slotW; let drawH = slotW / imgObj.res.ratio;
-                                if (drawH > slotH) { drawH = slotH; drawW = slotH * imgObj.res.ratio; }
-                                try { doc.addImage(imgObj.res.data, 'JPEG', imgX + (slotW - drawW) / 2, imgY + (slotH - drawH) / 2, drawW, drawH, undefined, 'FAST'); } catch (e) {}
-                            }
-                        });
-                    }
-                    totalProcessed++;
-                    const percent = Math.round((totalProcessed / checkboxes.length) * 100);
-                    progBar.style.width = percent + '%'; progTxt.innerText = `${percent}%`;
-                }
-            }
-            if (!isPdfCancelled) doc.save(`FROTA_CB_${activeYear}.pdf`);
-            btn.disabled = false; progCont.style.display = 'none';
-        }
-
         function render(isUnitJump = false) {
-            const list = fleetData[activeUnit].filter(t => t.id.includes(searchTerm)).sort((a, b) => parseInt(a.id) - parseInt(b.id));
+            const list = getCurrentFilteredList();
             const truck = list[currentIndex] || list[0] || { id: "---", docId:"", active: [false, false, false], transfer:"", notes:"", images:{} };
             
             if (isAdmin && list.length > 0) {
@@ -609,9 +556,19 @@
                             ${[1, 2, 3, 4].map(s => {
                                 const imgUrl = imgs[`c${i}_s${s}`] || "";
                                 return `
-                                    <div onclick="triggerImageUpload(${i}, ${s})" class="image-slot bg-slate-100/80 rounded-2xl border relative group overflow-hidden ${isAdmin ? 'border-blue-300 hover:bg-blue-50' : ''} flex items-center justify-center cursor-pointer shadow-sm">
-                                        ${imgUrl ? `<img src="${imgUrl}" onload="handleImgLoad(this)" onerror="handleImgError(this)" onclick="openZoom('${imgUrl}')" class="opacity-0 max-w-full max-h-full object-contain z-10">` : ''}
+                                    <div id="slot-container-${i}-${s}" 
+                                         onclick="triggerImageUpload(${i}, ${s})" 
+                                         ondragover="handleDragOver(event)" 
+                                         ondragleave="handleDragLeave(event)" 
+                                         ondrop="handleDrop(event, ${i}, ${s}, '${truck.docId}')"
+                                         class="image-slot bg-slate-100/80 rounded-2xl border relative group overflow-hidden ${isAdmin ? 'border-blue-300 hover:bg-blue-50 cursor-pointer' : ''} flex items-center justify-center shadow-sm">
+                                        
+                                        ${imgUrl ? `<img src="${imgUrl}" onload="handleImgLoad(this)" onerror="handleImgError(this)" onclick="openZoom('${imgUrl}')" class="opacity-0 max-w-full max-h-full object-contain z-10" alt="Foto da frota">` : ''}
+                                        
                                         <i data-lucide="${isAdmin ? 'upload-cloud' : 'image'}" class="img-placeholder-icon absolute w-5 h-5 ${isAdmin ? 'text-blue-400' : 'text-slate-200'} z-0"></i>
+                                        
+                                        ${isAdmin && imgUrl ? `<button onclick="deleteImage(event, ${i}, ${s}, '${truck.docId}')" title="Excluir imagem" class="absolute top-1.5 right-1.5 bg-red-600/90 hover:bg-red-700 text-white p-1 rounded-full z-30 transition-all shadow-md"><i data-lucide="trash-2" class="w-3 h-3"></i></button>` : ''}
+                                        
                                         ${isAdmin ? `<input type="file" id="file-input-${i}-${s}" accept="image/jpeg" class="hidden" onchange="handleFileUpload(this, ${i}, ${s}, '${truck.docId}')">` : ''}
                                     </div>`;
                             }).join('')}
@@ -626,92 +583,38 @@
         function changeUnit(unit) { activeUnit = unit; currentIndex = 0; render(true); }
         function setStep(i) { currentIndex = i; render(); }
 
-            document.getElementById('prev-btn').onclick = () => { 
-                if (currentIndex > 0) { 
-                    currentIndex--; 
-                    render(); 
-                } 
-            };
-
-            // =========================================================================
-// CORREÇÃO DEFINITIVA: NAVEGAÇÃO ENTRE VEÍCULOS (SETAS DA TELA E TECLADO)
-// =========================================================================
-
-// Função utilitária que retorna a lista exatamente como ela aparece na barra lateral
-function getCurrentFilteredList() {
-    return fleetData[activeUnit]
-        .filter(t => t.id.includes(searchTerm))
-        .sort((a, b) => parseInt(a.id) - parseInt(b.id));
-}
-
-// Evento do botão Voltar (Seta Esquerda da tela)
-document.getElementById('prev-btn').onclick = () => { 
-    if (currentIndex > 0) { 
-        currentIndex--; 
-        render(); 
-    } 
-};
-
-// Evento do botão Avançar (Seta Direita da tela)
-document.getElementById('next-btn').onclick = () => { 
-    const list = getCurrentFilteredList(); 
-    if (currentIndex < list.length - 1) { 
-        currentIndex++; 
-        render(); 
-    } 
-};
-
-// Evento do Input de Pesquisa (Mantém a lista atualizada)
-document.getElementById('search-input').oninput = (e) => {
-    const val = e.target.value.trim(); 
-    searchTerm = val;
-    currentIndex = 0; // Reseta para o primeiro da pesquisa
-    
-    if (val.length >= 2) { 
-        for (const u in fleetData) { 
-            const idx = fleetData[u]
-                .filter(t => t.id.includes(val))
-                .sort((a, b) => parseInt(a.id) - parseInt(b.id))
-                .findIndex(t => t.id === val);
-                
-            if (idx !== -1) { 
-                activeUnit = u; 
-                currentIndex = idx; 
-                render(); 
-                return; 
-            } 
-        } 
-    } 
-    render();
-};
-
-window.addEventListener('keydown', (e) => {
-    if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
-
-    if (e.key === 'Escape') {
-        if (document.body.classList.contains('comparison-active')) { 
-            toggleComparison(); 
-            return; 
-        }
-        document.getElementById('lightbox-modal').style.display = 'none';
-    }
-    else if (e.key.toLowerCase() === 'c') { 
-        toggleComparison(); 
-    }
-    else if (e.key === 'ArrowRight') {
-        // Dispara exatamente o clique da seta direita corrigido
-        document.getElementById('next-btn').click();
-    }
-    else if (e.key === 'ArrowLeft') {
-        // Dispara exatamente o clique da seta esquerda corrigido
-        document.getElementById('prev-btn').click();
-    }
-});
+        // NAVEGAÇÃO DE SETAS
+        document.getElementById('prev-btn').onclick = () => { 
+            if (currentIndex > 0) { currentIndex--; render(); } 
+        };
+        
+        document.getElementById('next-btn').onclick = () => { 
+            const list = getCurrentFilteredList(); 
+            if (currentIndex < list.length - 1) { currentIndex++; render(); } 
+        };
+        
         document.getElementById('search-input').oninput = (e) => {
-            const val = e.target.value.trim(); searchTerm = val;
-            if (val.length >= 2) { for (const u in fleetData) { const idx = fleetData[u].findIndex(t => t.id === val); if (idx !== -1) { activeUnit = u; currentIndex = idx; render(); return; } } }
+            const val = e.target.value.trim(); searchTerm = val; currentIndex = 0;
+            if (val.length >= 2) { 
+                for (const u in fleetData) { 
+                    const idx = fleetData[u].filter(t => t.id.includes(val)).sort((a, b) => parseInt(a.id) - parseInt(b.id)).findIndex(t => t.id === val);
+                    if (idx !== -1) { activeUnit = u; currentIndex = idx; render(); return; } 
+                } 
+            }
             render();
         };
+
+        window.addEventListener('keydown', (e) => {
+            if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+
+            if (e.key === 'Escape') {
+                if (document.body.classList.contains('comparison-active')) { toggleComparison(); return; }
+                document.getElementById('lightbox-modal').style.display = 'none';
+            }
+            else if (e.key.toLowerCase() === 'c') { toggleComparison(); }
+            else if (e.key === 'ArrowRight') { document.getElementById('next-btn').click(); }
+            else if (e.key === 'ArrowLeft') { document.getElementById('prev-btn').click(); }
+        });
 
         function toggleFullscreen() { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); }
         window.onload = loadYearsList;
