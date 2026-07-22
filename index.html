@@ -462,41 +462,63 @@
             document.getElementById(`file-input-${cycleIdx}-${slotIdx}`).click();
         }
 
+        // FUNÇÃO DE UPLOAD OTIMIZADA (ELIMINA O ERRO 400 CONVERTENDO PARA BASE64 LIMPO)
         async function uploadFileToSlot(file, cycleIdx, slotIdx, truckDocId) {
             if (!file) return;
+
+            // 1. Validação do tipo de arquivo no navegador
+            if (!file.type.startsWith('image/')) {
+                showToast("Selecione um arquivo de imagem válido!", "error");
+                return;
+            }
 
             const container = document.getElementById(`slot-container-${cycleIdx}-${slotIdx}`);
             const originalHTML = container ? container.innerHTML : ""; 
             if (container) container.innerHTML = `<span class="text-[8px] font-bold text-slate-400 animate-pulse">ENVIANDO...</span>`;
 
-            const formData = new FormData();
-            formData.append("image", file);
-
             try {
-                const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
-                    method: "POST",
-                    body: formData
-                });
-                const result = await response.json();
+                // 2. Converte o arquivo para Base64 antes de enviar
+                const base64String = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                 reader.onload = () => {
+                        // Remove o cabeçalho 'data:image/jpeg;base64,' mantendo apenas os dados puros da imagem
+                        const cleanBase64 = reader.result.split(',')[1];
+                        resolve(cleanBase64);
+                    };
+            reader.onerror = (err) => reject(err);
+            reader.readAsDataURL(file);
+        });
 
-                if (result.success) {
-                    const downloadURL = result.data.url; 
-                    const imageKey = `images.c${cycleIdx}_s${slotIdx}`;
-                    await db.collection("fleet").doc(truckDocId).update({
-                        [imageKey]: downloadURL
-                    });
-                    showToast("Imagem enviada!");
-                } else { throw new Error(result.error.message); }
-            } catch (error) {
-                showToast("Erro no envio da imagem", "error");
-                if (container) container.innerHTML = originalHTML;
-                render();
-            }
-        }
+        // 3. Monta o formulário de envio aceito nativamente pela API
+        const formData = new FormData();
+        formData.append("image", base64String);
 
-        function handleFileUpload(input, cycleIdx, slotIdx, truckDocId) {
-            uploadFileToSlot(input.files[0], cycleIdx, slotIdx, truckDocId);
+        const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+            method: "POST",
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            const downloadURL = result.data.url; 
+            const imageKey = `images.c${cycleIdx}_s${slotIdx}`;
+            
+            // Salva o link público gerado no Firestore
+            await db.collection("fleet").doc(truckDocId).update({
+                [imageKey]: downloadURL
+            });
+            showToast("Imagem enviada com sucesso!");
+        } else { 
+            throw new Error(result.error ? result.error.message : "Rejeitado pela API"); 
         }
+    } catch (error) {
+        console.error("Detalhes do erro de upload:", error);
+        showToast("Erro no envio: " + error.message, "error");
+        if (container) container.innerHTML = originalHTML;
+        render();
+    }
+}
 
         async function deleteImage(e, cycleIdx, slotIdx, truckDocId) {
             e.stopPropagation();
