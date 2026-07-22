@@ -48,10 +48,17 @@
         #global-progress-bar { width: 0%; height: 100%; background: #E30613; transition: width 0.4s ease; }
         #global-progress-text { color: white; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
         #progress-percent-text { color: #E30613; font-size: 10px; font-weight: 900; min-width: 40px; text-align: right; margin-right: 15px; }
+        
+        /* Animação para a notificação Toast */
+        @keyframes toastIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .toast-animate { animation: toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
     </style>
 </head>
 
 <body class="bg-[#F8FAFC] text-slate-900 h-screen flex flex-col">
+
+    <!-- CONTAINER DE NOTIFICAÇÕES TOAST (FLUTUANTE) -->
+    <div id="toast-container" class="fixed top-14 right-6 z-[300] flex flex-col gap-2 pointer-events-none"></div>
 
     <!-- Modal de Login do ADM -->
     <div id="login-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] hidden flex items-center justify-center">
@@ -186,7 +193,7 @@
                             <div id="adm-fields-container" class="hidden flex-1 max-w-2xl ml-4 bg-slate-100 p-2 rounded-xl flex items-center gap-2">
                                 <input type="text" id="edit-transfer" placeholder="Texto Transferência" class="flex-1 p-1.5 text-[10px] font-bold border rounded bg-white">
                                 <input type="text" id="edit-notes" placeholder="Observações" class="flex-1 p-1.5 text-[10px] font-bold border rounded bg-white">
-                                <button onclick="saveTruckMetadata()" class="bg-green-600 hover:bg-green-700 text-white font-black text-[9px] px-3 py-2 rounded-lg uppercase tracking-wider shadow-sm shrink-0">Salvar</button>
+                                <button onclick="saveTruckMetadata()" class="bg-green-600 hover:bg-green-700 text-white font-black text-[9px] px-3 py-2 rounded-lg uppercase tracking-wider shadow-sm shrink-0 flex items-center gap-1"><i data-lucide="save" class="w-3 h-3"></i> Salvar</button>
                                 <button onclick="deleteTruck()" class="bg-red-600 hover:bg-red-700 text-white font-black text-[9px] px-2.5 py-2 rounded-lg uppercase tracking-wider shadow-sm shrink-0" title="Excluir Veículo"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                             </div>
                         </div>
@@ -227,7 +234,6 @@
         const auth = firebase.auth();
 
         const IMGBB_API_KEY = "8b31673bd19288bca4fcd1093e07d9f1";
-
         const ALL_UNITS = ["CB NORTE", "CB SUL", "BARREIRAS", "JUAZEIRO", "OT"];
 
         const cycleInfo = [
@@ -244,6 +250,30 @@
         let searchTerm = "";
         let isPdfCancelled = false;
         let isAdmin = false;
+
+        // SISTEMA DE NOTIFICAÇÃO TOAST VISUAL
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const isSuccess = type === 'success';
+            const bgColor = isSuccess ? 'bg-slate-900 border-green-500' : 'bg-red-950 border-red-500';
+            const iconColor = isSuccess ? 'text-green-400' : 'text-red-400';
+            const iconName = isSuccess ? 'check-circle-2' : 'alert-circle';
+
+            toast.className = `toast-animate flex items-center gap-2.5 px-4 py-2.5 rounded-xl border ${bgColor} text-white text-[11px] font-black shadow-2xl pointer-events-auto`;
+            toast.innerHTML = `<i data-lucide="${iconName}" class="w-4 h-4 ${iconColor}"></i> <span>${message}</span>`;
+            
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-10px)';
+                toast.style.transition = 'all 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 2500);
+        }
 
         auth.onAuthStateChanged(user => {
             if (user) {
@@ -276,8 +306,6 @@
                     rawFleetDocs = [];
                     snapshot.forEach(doc => {
                         const data = doc.data();
-                        
-                        // Garante compatibilidade de estrutura de unidades por ciclo [C1, C2, C3]
                         let cycleUnits = data.cycleUnits;
                         if (!cycleUnits) {
                             const defaultUnit = data.unit || "CB NORTE";
@@ -343,12 +371,13 @@
                             images: {}
                         });
                     }
-                } catch (err) { alert("Erro ao clonar: " + err.message); }
+                } catch (err) { showToast("Erro ao clonar dados", "error"); }
             }
 
             activeYear = newYear;
             currentIndex = 0;
             loadDataFromFirebase();
+            showToast(`Ano ${newYear} criado com sucesso!`);
         }
 
         function changeYear(year) {
@@ -358,7 +387,7 @@
         }
 
         function openLoginModal() {
-            if (isAdmin) { auth.signOut(); } 
+            if (isAdmin) { auth.signOut(); showToast("Você saiu do modo ADM"); } 
             else { document.getElementById('login-modal').classList.remove('hidden'); }
         }
         function closeLoginModal() { document.getElementById('login-modal').classList.add('hidden'); }
@@ -368,7 +397,8 @@
             try {
                 await auth.signInWithEmailAndPassword(email, password);
                 closeLoginModal();
-            } catch (error) { alert("Erro: " + error.message); }
+                showToast("Autenticado como ADM!");
+            } catch (error) { showToast("Erro de login: " + error.message, "error"); }
         }
 
         async function addNewTruck() {
@@ -384,6 +414,7 @@
                 notes: "",
                 images: {}
             });
+            showToast(`Veículo ${id} adicionado!`);
         }
 
         async function saveTruckMetadata() {
@@ -395,7 +426,7 @@
                 transfer: document.getElementById('edit-transfer').value,
                 notes: document.getElementById('edit-notes').value
             });
-            alert("Salvo com sucesso!");
+            showToast("Informações salvas com sucesso!");
         }
 
         async function deleteTruck() {
@@ -407,10 +438,10 @@
                 await db.collection("fleet").doc(truck.docId).delete();
                 currentIndex = 0;
                 render();
+                showToast(`Veículo ${truck.id} excluído!`);
             }
         }
 
-        // ADM ALTERA UNIDADE DO CICLO ESPECÍFICO
         async function setCycleUnit(cycleIdx, newUnit) {
             if (!isAdmin) return;
             const list = getCurrentFilteredList();
@@ -423,6 +454,7 @@
             await db.collection("fleet").doc(truck.docId).update({
                 cycleUnits: updatedCycleUnits
             });
+            showToast(`Unidade do ${cycleIdx + 1}º ciclo atualizada!`);
         }
 
         function triggerImageUpload(cycleIdx, slotIdx) {
@@ -453,9 +485,10 @@
                     await db.collection("fleet").doc(truckDocId).update({
                         [imageKey]: downloadURL
                     });
+                    showToast("Imagem enviada!");
                 } else { throw new Error(result.error.message); }
             } catch (error) {
-                alert("Erro: " + error.message);
+                showToast("Erro no envio da imagem", "error");
                 if (container) container.innerHTML = originalHTML;
                 render();
             }
@@ -474,8 +507,9 @@
                 await db.collection("fleet").doc(truckDocId).update({
                     [imageKey]: firebase.firestore.FieldValue.delete()
                 });
+                showToast("Imagem removida!");
             } catch (err) {
-                console.error("Erro ao apagar imagem:", err);
+                showToast("Erro ao remover imagem", "error");
             }
         }
 
@@ -502,7 +536,6 @@
             lucide.createIcons();
         }
 
-        // RETORNA VEÍCULOS QUE POSSUEM AO MENOS 1 CICLO ATIVO NA UNIDADE SELECIONADA
         function getCurrentFilteredList() {
             return rawFleetDocs.filter(truck => {
                 const matchesSearch = truck.id.includes(searchTerm);
@@ -578,7 +611,6 @@
                                 <span class="text-[7px] font-bold text-slate-400 block italic">${cycleInfo[i].range}</span>
                             </div>
                             
-                            <!-- SELETOR ADM DE UNIDADE POR CICLO OU BADGE -->
                             ${isAdmin ? `
                                 <select onchange="setCycleUnit(${i}, this.value)" class="text-[8px] font-bold border rounded px-1 py-0.5 bg-white text-slate-800 outline-none">
                                     <option value="">(Nenhuma)</option>
