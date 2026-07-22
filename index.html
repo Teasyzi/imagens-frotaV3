@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CB - Imagens Frota</title>
     
-    <!-- Suporte PWA (Modo Aplicativo) -->
     <meta name="theme-color" content="#E30613">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -16,7 +15,6 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
-    <!-- SDKs do Firebase (Versão Compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -56,13 +54,11 @@
 
 <body class="bg-[#F8FAFC] text-slate-900 h-screen flex flex-col">
 
-    <!-- NOTIFICAÇÕES TOAST -->
     <div id="toast-container" class="fixed top-14 right-6 z-[300] flex flex-col gap-2 pointer-events-none"></div>
 
-    <!-- Modal de Login ADM -->
     <div id="login-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] hidden flex items-center justify-center">
         <div class="bg-white p-6 rounded-2xl shadow-2xl w-80 flex flex-col gap-4">
-            <h3 class="font-black text-xs uppercase tracking-wider text-slate-900">Login Administrativo</h3>
+            <h3 class="font-black text-xs uppercase tracking-wider text-slate-900">Login</h3>
             <input type="email" id="login-email" placeholder="E-mail" class="w-full p-2 border rounded-lg text-xs outline-none focus:border-[#E30613]">
             <input type="password" id="login-password" placeholder="Senha" class="w-full p-2 border rounded-lg text-xs outline-none focus:border-[#E30613]">
             <div class="flex gap-2 mt-2">
@@ -145,10 +141,10 @@
         <div id="unit-selector" class="hidden md:flex bg-black/10 p-1 rounded-lg gap-0.5 font-black text-[9px] tracking-tighter uppercase text-white"></div>
         <div class="flex items-center gap-4">
             <button id="btn-adm-auth" onclick="openLoginModal()" class="flex items-center gap-2 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-3 py-1 rounded-md transition-all text-[10px] font-black uppercase">
-                <i data-lucide="lock" class="w-3.5 h-3.5"></i> <span id="adm-btn-text">Área ADM</span>
+                <i data-lucide="lock" class="w-3.5 h-3.5"></i> <span id="adm-btn-text">Editar ✏️</span>
             </button>
             <button id="btn-comparison" onclick="toggleComparison()" class="hidden flex items-center gap-2 bg-white/20 hover:bg-white text-white hover:text-[#E30613] px-3 py-1 rounded-md transition-all text-[10px] font-black uppercase">
-                <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i> Comparar Ciclos (C)
+                <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>
             </button>
             <button onclick="toggleFullscreen()" class="p-1.5 hover:bg-white/10 rounded-md transition-all text-white/70 hover:text-white" title="Tela Cheia (F11)">
                 <i data-lucide="maximize" class="w-4 h-4 text-white"></i>
@@ -275,13 +271,13 @@
         auth.onAuthStateChanged(user => {
             if (user) {
                 isAdmin = true;
-                document.getElementById('adm-btn-text').innerText = "Sair (ADM)";
+                document.getElementById('adm-btn-text').innerText = "Sair";
                 document.getElementById('adm-fields-container').classList.remove('hidden');
                 document.getElementById('btn-add-truck').classList.remove('hidden');
                 document.getElementById('btn-add-year').classList.remove('hidden');
             } else {
                 isAdmin = false;
-                document.getElementById('adm-btn-text').innerText = "Área ADM";
+                document.getElementById('adm-btn-text').innerText = "Editar ✏️";
                 document.getElementById('adm-fields-container').classList.add('hidden');
                 document.getElementById('btn-add-truck').classList.add('hidden');
                 document.getElementById('btn-add-year').classList.add('hidden');
@@ -341,11 +337,11 @@
 
         async function addNewYear() {
             if (!isAdmin) return;
-            const newYear = prompt("Digite o novo Ano que deseja gerenciar (Ex: 2026):");
+            const newYear = prompt("Digite o novo Ano (Ex: 202*):");
             if (!newYear || availableYears.includes(newYear)) return;
 
             const baseYear = activeYear; 
-            const wantToClone = confirm(`Deseja clonar a lista de veículos de ${baseYear} para o novo ano ${newYear}?`);
+            const wantToClone = confirm(`Deseja adicionar a lista de veículos de ${baseYear} para o novo ano ${newYear}?`);
 
             availableYears.push(newYear);
             availableYears.sort((a, b) => parseInt(a) - parseInt(b));
@@ -384,7 +380,7 @@
         }
 
         function openLoginModal() {
-            if (isAdmin) { auth.signOut(); showToast("Você saiu do modo ADM"); } 
+            if (isAdmin) { auth.signOut(); showToast("Você saiu do modo de edição."); } 
             else { document.getElementById('login-modal').classList.remove('hidden'); }
         }
         function closeLoginModal() { document.getElementById('login-modal').classList.add('hidden'); }
@@ -394,7 +390,7 @@
             try {
                 await auth.signInWithEmailAndPassword(email, password);
                 closeLoginModal();
-                showToast("Autenticado como ADM!");
+                showToast("Modo de edição ativado!");
             } catch (error) { showToast("Erro de login: " + error.message, "error"); }
         }
 
@@ -459,7 +455,6 @@
             document.getElementById(`file-input-${cycleIdx}-${slotIdx}`).click();
         }
 
-        // REDIMENSIONA E COMPRIME A FOTO VIA CANVAS (CLIENT-SIDE)
         function compressImage(file, maxWidth = 1200, quality = 0.8) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -482,7 +477,6 @@
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, width, height);
 
-                        // Converte para Base64 otimizado em JPEG
                         resolve(canvas.toDataURL('image/jpeg', quality));
                     };
                     img.onerror = (err) => reject(err);
@@ -491,7 +485,6 @@
             });
         }
 
-        // UPLOAD SEGURO PARA O FIRESTORE
         async function uploadFileToSlot(file, cycleIdx, slotIdx, truckDocId) {
             if (!file) return;
 
@@ -505,7 +498,6 @@
             if (container) container.innerHTML = `<span class="text-[8px] font-bold text-slate-400 animate-pulse">PROCESSANDO...</span>`;
 
             try {
-                // Comprime e transforma em Base64 localmente
                 const compressedBase64 = await compressImage(file);
                 
                 const imageKey = `images.c${cycleIdx}_s${slotIdx}`;
@@ -522,7 +514,6 @@
             }
         }
 
-        // FUNÇÃO OBRIGATÓRIA CHAMADA PELO INPUT FILE
         function handleFileUpload(input, cycleIdx, slotIdx, truckDocId) {
             if (input.files && input.files[0]) {
                 uploadFileToSlot(input.files[0], cycleIdx, slotIdx, truckDocId);
@@ -705,7 +696,6 @@
             render();
         };
 
-        // TECLADO SEGURO
         window.addEventListener('keydown', (e) => {
             if (!e || !e.key) return;
             if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
