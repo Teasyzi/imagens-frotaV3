@@ -15,6 +15,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
+    <!-- SDKs do Firebase (Versão Compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -56,6 +57,23 @@
 
     <div id="toast-container" class="fixed top-14 right-6 z-[300] flex flex-col gap-2 pointer-events-none"></div>
 
+    <!-- MODAL DE HISTÓRICO DE AUDITORIA -->
+    <div id="audit-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] hidden flex items-center justify-center">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl w-[450px] max-h-[80vh] flex flex-col">
+            <div class="flex justify-between items-center border-b pb-3 mb-3">
+                <div class="flex items-center gap-2 text-slate-800">
+                    <i data-lucide="history" class="w-4 h-4 text-[#E30613]"></i>
+                    <h3 class="font-black text-xs uppercase tracking-wider">Histórico de Alterações</h3>
+                </div>
+                <button onclick="closeAuditModal()" class="text-slate-400 hover:text-red-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            <div id="audit-logs-list" class="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1 text-[10px]">
+                <span class="text-slate-400 text-center block py-4">Carregando histórico...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE LOGIN ADM -->
     <div id="login-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] hidden flex items-center justify-center">
         <div class="bg-white p-6 rounded-2xl shadow-2xl w-80 flex flex-col gap-4">
             <h3 class="font-black text-xs uppercase tracking-wider text-slate-900">Login</h3>
@@ -71,7 +89,7 @@
     <div id="global-progress-container">
         <div id="global-progress-text" class="flex items-center gap-2">
             <i data-lucide="refresh-cw" class="w-3 h-3 text-[#E30613] animate-spin"></i>
-            <span>GERANDO PDF</span>
+            <span>GERANDO RELATÓRIO PDF</span>
         </div>
         <div id="progress-track">
             <div id="global-progress-bar"></div>
@@ -90,7 +108,7 @@
 
     <aside id="options-menu" class="fixed top-0 right-0 h-full w-80 bg-white shadow-2xl flex flex-col border-l border-slate-200">
         <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-            <h2 class="font-black text-[10px] uppercase tracking-widest text-slate-900">GERAR PDF</h2>
+            <h2 class="font-black text-[10px] uppercase tracking-widest text-slate-900">RELATÓRIOS E OPÇÕES</h2>
             <button onclick="toggleMenu()" class="text-slate-400 hover:text-red-600"><i data-lucide="x" class="w-5 h-5"></i></button>
         </div>
         <div class="p-6 flex-1 overflow-y-auto custom-scrollbar space-y-8">
@@ -117,9 +135,12 @@
                 <div id="pdf-truck-selection" class="space-y-1 max-h-80 overflow-y-auto pr-2 custom-scrollbar border rounded-lg p-2 bg-slate-50/50"></div>
             </div>
         </div>
-        <div class="p-6 bg-slate-50 border-t border-slate-100">
-            <button id="btn-generate-pdf" onclick="downloadCombinedPDF()" class="w-full bg-[#E30613] text-white py-4 rounded-xl font-black text-[9px] uppercase tracking-[0.2em] shadow-lg hover:bg-red-700 transition-all flex items-center justify-center gap-3">
-                <i data-lucide="layers" class="w-4 h-4"></i> Gerar arquivo
+        <div class="p-6 bg-slate-50 border-t border-slate-100 space-y-2">
+            <button id="btn-generate-single-pdf" onclick="exportSingleVehiclePDF()" class="w-full bg-slate-900 text-white py-3 rounded-xl font-black text-[9px] uppercase tracking-[0.15em] shadow hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
+                <i data-lucide="file-text" class="w-4 h-4 text-[#E30613]"></i> Ficha do Veículo Atual
+            </button>
+            <button id="btn-generate-pdf" onclick="downloadCombinedPDF()" class="w-full bg-[#E30613] text-white py-3.5 rounded-xl font-black text-[9px] uppercase tracking-[0.2em] shadow-lg hover:bg-red-700 transition-all flex items-center justify-center gap-2">
+                <i data-lucide="layers" class="w-4 h-4"></i> Gerar PDF Lote
             </button>
         </div>
     </aside>
@@ -140,6 +161,9 @@
         
         <div id="unit-selector" class="hidden md:flex bg-black/10 p-1 rounded-lg gap-0.5 font-black text-[9px] tracking-tighter uppercase text-white"></div>
         <div class="flex items-center gap-4">
+            <button onclick="exportSingleVehiclePDF()" class="flex items-center gap-1.5 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-2.5 py-1 rounded-md transition-all text-[10px] font-black uppercase" title="Imprimir Ficha">
+                <i data-lucide="printer" class="w-3.5 h-3.5"></i> Ficha PDF
+            </button>
             <button id="btn-adm-auth" onclick="openLoginModal()" class="flex items-center gap-2 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-3 py-1 rounded-md transition-all text-[10px] font-black uppercase">
                 <i data-lucide="lock" class="w-3.5 h-3.5"></i> <span id="adm-btn-text">Editar ✏️</span>
             </button>
@@ -189,6 +213,7 @@
                                 <input type="text" id="edit-transfer" placeholder="Texto Transferência" class="flex-1 p-1.5 text-[10px] font-bold border rounded bg-white">
                                 <input type="text" id="edit-notes" placeholder="Observações" class="flex-1 p-1.5 text-[10px] font-bold border rounded bg-white">
                                 <button onclick="saveTruckMetadata()" class="bg-green-600 hover:bg-green-700 text-white font-black text-[9px] px-3 py-2 rounded-lg uppercase tracking-wider shadow-sm shrink-0 flex items-center gap-1"><i data-lucide="save" class="w-3 h-3"></i> Salvar</button>
+                                <button onclick="openAuditModal()" class="bg-slate-800 hover:bg-slate-900 text-white font-black text-[9px] px-2.5 py-2 rounded-lg uppercase tracking-wider shadow-sm shrink-0 flex items-center gap-1" title="Ver Histórico"><i data-lucide="history" class="w-3.5 h-3.5"></i> Logs</button>
                                 <button onclick="deleteTruck()" class="bg-red-600 hover:bg-red-700 text-white font-black text-[9px] px-2.5 py-2 rounded-lg uppercase tracking-wider shadow-sm shrink-0" title="Excluir Veículo"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                             </div>
                         </div>
@@ -228,6 +253,11 @@
         const db = firebase.firestore();
         const auth = firebase.auth();
 
+        // PONTO 1: SUPORTE OFFLINE DO FIRESTORE
+        db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+            console.log("Aviso de persistência offline:", err.code);
+        });
+
         const ALL_UNITS = ["CB NORTE", "CB SUL", "BARREIRAS", "JUAZEIRO", "OT"];
 
         const cycleInfo = [
@@ -244,7 +274,7 @@
         let searchTerm = "";
         let isPdfCancelled = false;
         let isAdmin = false;
-        let activeTruckSlots = {}; // Armazena as imagens da subcoleção em tempo real
+        let activeTruckSlots = {};
 
         function showToast(message, type = 'success') {
             const container = document.getElementById('toast-container');
@@ -267,6 +297,60 @@
                 toast.style.transition = 'all 0.3s ease';
                 setTimeout(() => toast.remove(), 300);
             }, 2500);
+        }
+
+        // PONTO 4: REGISTRO DE AUDITORIA NO FIRESTORE
+        async function logAuditAction(truckDocId, actionDescription) {
+            try {
+                const userEmail = auth.currentUser ? auth.currentUser.email : "ADM Anônimo";
+                await db.collection("fleet").doc(truckDocId).collection("audit_logs").add({
+                    user: userEmail,
+                    action: actionDescription,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            } catch (e) {
+                console.error("Erro ao registrar log de auditoria:", e);
+            }
+        }
+
+        async function openAuditModal() {
+            const list = getCurrentFilteredList();
+            const truck = list[currentIndex];
+            if (!truck) return;
+
+            document.getElementById('audit-modal').classList.remove('hidden');
+            const logsContainer = document.getElementById('audit-logs-list');
+            logsContainer.innerHTML = `<span class="text-slate-400 text-center block py-4 animate-pulse">Carregando logs do veículo ${truck.id}...</span>`;
+
+            try {
+                const snapshot = await db.collection("fleet").doc(truck.docId).collection("audit_logs")
+                    .orderBy("timestamp", "desc").limit(20).get();
+
+                if (snapshot.empty) {
+                    logsContainer.innerHTML = `<span class="text-slate-400 text-center block py-4">Nenhum registro de alteração encontrado para este veículo.</span>`;
+                    return;
+                }
+
+                logsContainer.innerHTML = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    const dateStr = data.timestamp ? new Date(data.timestamp.toDate()).toLocaleString('pt-BR') : "Recente";
+                    return `
+                        <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex flex-col gap-1">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-slate-800">${data.user}</span>
+                                <span class="text-[8px] text-slate-400 font-bold">${dateStr}</span>
+                            </div>
+                            <span class="text-slate-600 font-medium">${data.action}</span>
+                        </div>
+                    `;
+                }).join('');
+            } catch (err) {
+                logsContainer.innerHTML = `<span class="text-red-500 text-center block py-4">Erro ao carregar logs.</span>`;
+            }
+        }
+
+        function closeAuditModal() {
+            document.getElementById('audit-modal').classList.add('hidden');
         }
 
         auth.onAuthStateChanged(user => {
@@ -317,7 +401,7 @@
                             active: data.active || [true, true, true],
                             transfer: data.transfer || "",
                             notes: data.notes || "",
-                            legacyImages: data.images || {} // Suporte para migração/imagens antigas do ImgBB
+                            legacyImages: data.images || {}
                         });
                     });
                     render();
@@ -331,7 +415,6 @@
 
             if (!truckDocId) return;
 
-            // Escuta a SUBCOLEÇÃO de imagens do veículo selecionado
             unsubscribeSlots = db.collection("fleet").doc(truckDocId).collection("slots")
                 .onSnapshot(snapshot => {
                     activeTruckSlots = {};
@@ -424,6 +507,7 @@
                 transfer: "",
                 notes: ""
             });
+            await logAuditAction(fullDocId, `Veículo ${id} cadastrado no sistema (${activeYear}).`);
             showToast(`Veículo ${id} adicionado!`);
         }
 
@@ -432,10 +516,15 @@
             const truck = list[currentIndex];
             if (!truck) return;
 
+            const newTransfer = document.getElementById('edit-transfer').value;
+            const newNotes = document.getElementById('edit-notes').value;
+
             await db.collection("fleet").doc(truck.docId).update({
-                transfer: document.getElementById('edit-transfer').value,
-                notes: document.getElementById('edit-notes').value
+                transfer: newTransfer,
+                notes: newNotes
             });
+
+            await logAuditAction(truck.docId, `Atualizou dados (Transf: "${newTransfer}", Obs: "${newNotes}")`);
             showToast("Informações salvas!");
         }
 
@@ -464,28 +553,20 @@
             await db.collection("fleet").doc(truck.docId).update({
                 cycleUnits: updatedCycleUnits
             });
+
+            await logAuditAction(truck.docId, `Alterou ${cycleIdx + 1}º ciclo para a unidade "${newUnit || 'Inativo'}"`);
             showToast(`Ciclo alterado!`);
         }
 
-function triggerImageUpload(cycleIdx, slotIdx) {
-    if (!isAdmin) return;
-    
-    const fileInput = document.getElementById(`file-input-${cycleIdx}-${slotIdx}`);
-    if (!fileInput) return;
+        function triggerImageUpload(cycleIdx, slotIdx) {
+            if (!isAdmin) return;
+            const fileInput = document.getElementById(`file-input-${cycleIdx}-${slotIdx}`);
+            if (!fileInput) return;
+            fileInput.value = '';
+            fileInput.oncancel = () => { document.body.focus(); };
+            fileInput.click();
+        }
 
-    // Reseta o valor anterior para não travar
-    fileInput.value = '';
-
-    // Remove ouvintes antigos para evitar múltiplos gatilhos acumulados
-    fileInput.oncancel = null;
-    
-    // Garante retorno do foco para a página se o usuário cancelar
-    fileInput.oncancel = () => {
-        document.body.focus();
-    };
-
-    fileInput.click();
-}
         function compressImage(file, maxWidth = 1000, quality = 0.75) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -516,7 +597,6 @@ function triggerImageUpload(cycleIdx, slotIdx) {
             });
         }
 
-        // SALVA CADA FOTO COMO UM DOCUMENTO PRÓPRIO NA SUBCOLEÇÃO "SLOTS"
         async function uploadFileToSlot(file, cycleIdx, slotIdx, truckDocId) {
             if (!file) return;
 
@@ -533,12 +613,12 @@ function triggerImageUpload(cycleIdx, slotIdx) {
                 const compressedBase64 = await compressImage(file);
                 const slotDocId = `c${cycleIdx}_s${slotIdx}`;
                 
-                // Grava no documento individual da subcoleção /fleet/DOC_ID/slots/c0_s1
                 await db.collection("fleet").doc(truckDocId).collection("slots").doc(slotDocId).set({
                     base64: compressedBase64,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
+                await logAuditAction(truckDocId, `Adicionou/Atualizou foto no Ciclo ${cycleIdx + 1}, Foto ${slotIdx}`);
                 showToast("Imagem salva com sucesso!");
             } catch (error) {
                 console.error("Erro no envio:", error);
@@ -559,19 +639,116 @@ function triggerImageUpload(cycleIdx, slotIdx) {
 
             try {
                 const slotDocId = `c${cycleIdx}_s${slotIdx}`;
-                
-                // Deleta a foto da subcoleção "slots"
                 await db.collection("fleet").doc(truckDocId).collection("slots").doc(slotDocId).delete();
                 
-                // Se for foto legada do ImgBB no documento pai, apaga também
                 const imageKey = `images.c${cycleIdx}_s${slotIdx}`;
                 await db.collection("fleet").doc(truckDocId).update({
                     [imageKey]: firebase.firestore.FieldValue.delete()
                 }).catch(() => {});
 
+                await logAuditAction(truckDocId, `Removeu a foto do Ciclo ${cycleIdx + 1}, Foto ${slotIdx}`);
                 showToast("Imagem removida!");
             } catch (err) {
                 showToast("Erro ao remover", "error");
+            }
+        }
+
+        // PONTO 2: EXPORTAÇÃO DA FICHA INDIVIDUAL EM PDF
+        async function exportSingleVehiclePDF() {
+            const list = getCurrentFilteredList();
+            const truck = list[currentIndex];
+            if (!truck) { showToast("Nenhum veículo selecionado!", "error"); return; }
+
+            showToast("Gerando PDF do veículo...", "success");
+
+            try {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const pageWidth = pdf.internal.pageSize.getWidth();
+
+                // Cabeçalho Vermelho da Empresa
+                pdf.setFillColor(227, 6, 19);
+                pdf.rect(0, 0, pageWidth, 25, 'F');
+
+                pdf.setTextColor(255, 255, 255);
+                pdf.setFont("helvetica", "bold");
+                pdf.setFontSize(14);
+                pdf.text("CB DISTRIBUIDORA DE BEBIDAS", 10, 12);
+                
+                pdf.setFontSize(9);
+                pdf.setFont("helvetica", "normal");
+                pdf.text(`FICHA DE IMPRESSÃO / VISTORIA DE FROTA - ${activeYear}`, 10, 18);
+
+                // Bloco de Informações do Caminhão
+                pdf.setTextColor(30, 41, 59);
+                pdf.setFontSize(22);
+                pdf.setFont("helvetica", "bold");
+                pdf.text(`VEÍCULO: ${truck.id}`, 10, 38);
+
+                pdf.setFontSize(10);
+                pdf.setFont("helvetica", "normal");
+                pdf.text(`Unidade Principal: ${activeUnit}`, 10, 45);
+                if (truck.transfer) pdf.text(`Transferência: ${truck.transfer}`, 10, 51);
+                if (truck.notes) pdf.text(`Observações: ${truck.notes}`, 10, 57);
+
+                pdf.setDrawColor(226, 232, 240);
+                pdf.line(10, 62, pageWidth - 10, 62);
+
+                // Captura e renderiza as imagens da subcoleção no PDF
+                const snapshot = await db.collection("fleet").doc(truck.docId).collection("slots").get();
+                let imagesMap = {};
+                snapshot.forEach(doc => { imagesMap[doc.id] = doc.data().url || doc.data().base64; });
+
+                let yPos = 70;
+                pdf.setFontSize(11);
+                pdf.setFont("helvetica", "bold");
+                pdf.text("GALERIA DE FOTOS DOS CICLOS", 10, yPos);
+                yPos += 6;
+
+                let imageCount = 0;
+                const imgWidth = 43;
+                const imgHeight = 32;
+
+                for (let c = 0; c < 3; c++) {
+                    const cycleLabel = cycleInfo[c].label;
+                    const unitLabel = truck.cycleUnits ? (truck.cycleUnits[c] || "Inativo") : activeUnit;
+                    
+                    pdf.setFontSize(9);
+                    pdf.setFont("helvetica", "bold");
+                    pdf.setTextColor(227, 6, 19);
+                    pdf.text(`${cycleLabel} (${unitLabel})`, 10, yPos);
+                    yPos += 4;
+
+                    let xPos = 10;
+                    for (let s = 1; s <= 4; s++) {
+                        const slotKey = `c${c}_s${s}`;
+                        const imgData = imagesMap[slotKey] || (truck.legacyImages ? truck.legacyImages[slotKey] : null);
+
+                        if (imgData) {
+                            try {
+                                pdf.addImage(imgData, 'JPEG', xPos, yPos, imgWidth, imgHeight);
+                                imageCount++;
+                            } catch (e) {
+                                pdf.rect(xPos, yPos, imgWidth, imgHeight);
+                            }
+                        } else {
+                            pdf.setDrawColor(200, 200, 200);
+                            pdf.rect(xPos, yPos, imgWidth, imgHeight);
+                        }
+                        xPos += imgWidth + 4;
+                    }
+                    yPos += imgHeight + 8;
+                }
+
+                pdf.setFontSize(8);
+                pdf.setTextColor(150, 150, 150);
+                pdf.text(`Ficha gerada em ${new Date().toLocaleString('pt-BR')}`, 10, 285);
+
+                pdf.save(`Ficha_Veiculo_${truck.id}_${activeYear}.pdf`);
+                showToast("Ficha do veículo gerada!");
+            } catch (err) {
+                console.error("Erro ao gerar PDF:", err);
+                showToast("Erro ao gerar PDF", "error");
             }
         }
 
@@ -672,7 +849,6 @@ function triggerImageUpload(cycleIdx, slotIdx) {
             lucide.createIcons();
         }
 
-        // RENDERIZA APENAS O GRID DE SLOTS RAPIDAMENTE
         function renderSlotsGridOnly() {
             const list = getCurrentFilteredList();
             const truck = list[currentIndex] || { id: "---", docId:"", cycleUnits: [null, null, null], legacyImages:{} };
@@ -703,24 +879,24 @@ function triggerImageUpload(cycleIdx, slotIdx) {
                                 const slotKey = `c${i}_s${s}`;
                                 const imgUrl = activeTruckSlots[slotKey] || (truck.legacyImages ? truck.legacyImages[slotKey] : "") || "";
                                 const canUpload = isAdmin && isActiveInThisUnit;
-                            return `
+                                return `
                                     <div id="slot-container-${i}-${s}" 
                                          ${canUpload ? `onclick="event.stopPropagation(); triggerImageUpload(${i}, ${s})"` : ''} 
                                          ondragover="handleDragOver(event)" 
                                          ondragleave="handleDragLeave(event)" 
                                          ondrop="handleDrop(event, ${i}, ${s}, '${truck.docId}')"
                                          class="image-slot bg-slate-100/80 rounded-2xl border relative group overflow-hidden ${canUpload ? 'border-blue-300 hover:bg-blue-50 cursor-pointer' : ''} flex items-center justify-center shadow-sm">
-            
-                                            ${imgUrl ? `<img src="${imgUrl}" onload="handleImgLoad(this)" onerror="handleImgError(this)" onclick="openZoom('${imgUrl}')" class="opacity-0 max-w-full max-h-full object-contain z-10" alt="Foto da frota">` : ''}
-            
-                                            <i data-lucide="${canUpload ? 'upload-cloud' : 'image'}" class="img-placeholder-icon absolute w-5 h-5 ${canUpload ? 'text-blue-400' : 'text-slate-200'} z-0"></i>
-            
-                                            ${isAdmin && imgUrl ? `<button onclick="deleteImage(event, ${i}, ${s}, '${truck.docId}')" title="Excluir imagem" class="absolute top-1.5 right-1.5 bg-red-600/90 hover:bg-red-700 text-white p-1 rounded-full z-30 transition-all shadow-md"><i data-lucide="trash-2" class="w-3 h-3"></i></button>` : ''}
-            
-                                            ${canUpload ? `<input type="file" id="file-input-${i}-${s}" accept="image/*" class="hidden" onclick="event.stopPropagation();" onchange="handleFileUpload(this, ${i}, ${s}, '${truck.docId}')">` : ''}
-                                        </div>`;
-                                }).join('')}
-                            </div>
+                                        
+                                        ${imgUrl ? `<img src="${imgUrl}" onload="handleImgLoad(this)" onerror="handleImgError(this)" onclick="openZoom('${imgUrl}')" class="opacity-0 max-w-full max-h-full object-contain z-10" alt="Foto da frota">` : ''}
+                                        
+                                        <i data-lucide="${canUpload ? 'upload-cloud' : 'image'}" class="img-placeholder-icon absolute w-5 h-5 ${canUpload ? 'text-blue-400' : 'text-slate-200'} z-0"></i>
+                                        
+                                        ${isAdmin && imgUrl ? `<button onclick="deleteImage(event, ${i}, ${s}, '${truck.docId}')" title="Excluir imagem" class="absolute top-1.5 right-1.5 bg-red-600/90 hover:bg-red-700 text-white p-1 rounded-full z-30 transition-all shadow-md"><i data-lucide="trash-2" class="w-3 h-3"></i></button>` : ''}
+                                        
+                                        ${canUpload ? `<input type="file" id="file-input-${i}-${s}" accept="image/*" class="hidden" onclick="event.stopPropagation();" onchange="handleFileUpload(this, ${i}, ${s}, '${truck.docId}')">` : ''}
+                                    </div>`;
+                            }).join('')}
+                        </div>
                     </div>`;
             }).join('');
             lucide.createIcons();
@@ -759,6 +935,7 @@ function triggerImageUpload(cycleIdx, slotIdx) {
             if (key === 'escape') {
                 if (document.body.classList.contains('comparison-active')) { toggleComparison(); return; }
                 document.getElementById('lightbox-modal').style.display = 'none';
+                closeAuditModal();
             }
             else if (key === 'c') { toggleComparison(); }
             else if (e.key === 'ArrowRight') { document.getElementById('next-btn').click(); }
