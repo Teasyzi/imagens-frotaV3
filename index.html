@@ -55,6 +55,36 @@
 
 <body class="bg-[#F8FAFC] text-slate-900 h-screen flex flex-col">
 
+    <!-- TELA DE LOGIN BLOQUEANTE (SPLASH DE ENTRADA) -->
+    <div id="app-login-screen" class="fixed inset-0 bg-slate-950 z-[500] flex items-center justify-center p-4">
+        <div class="w-full max-w-sm bg-white rounded-3xl p-8 shadow-2xl flex flex-col items-center border border-slate-100">
+            <!-- Ícone / Logo -->
+            <div class="bg-[#E30613] p-4 rounded-2xl shadow-lg mb-4 text-white">
+                <i data-lucide="truck" class="w-8 h-8"></i>
+            </div>
+            
+            <h1 class="text-xs font-black tracking-[0.25em] text-[#E30613] uppercase italic">CB Distribuidora</h1>
+            <h2 class="text-xl font-black text-slate-900 tracking-tight mt-1 mb-6">Controle de Imagens Frota</h2>
+
+            <div class="w-full space-y-3">
+                <div>
+                    <label class="text-[9px] font-black text-slate-400 uppercase block mb-1">E-mail de Acesso</label>
+                    <input type="email" id="main-login-email" placeholder="usuario@cb.com.br" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-[#E30613] focus:bg-white transition-all">
+                </div>
+                <div>
+                    <label class="text-[9px] font-black text-slate-400 uppercase block mb-1">Senha</label>
+                    <input type="password" id="main-login-password" placeholder="••••••••" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-[#E30613] focus:bg-white transition-all">
+                </div>
+
+                <button onclick="handleMainLogin()" id="btn-login-submit" class="w-full bg-[#E30613] hover:bg-red-700 text-white font-black text-xs py-3.5 rounded-xl uppercase tracking-widest shadow-lg shadow-red-500/20 transition-all flex items-center justify-center gap-2 mt-2">
+                    <i data-lucide="log-in" class="w-4 h-4"></i> Entrar no Sistema
+                </button>
+            </div>
+
+            <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider text-center mt-6">Acesso restrito para funcionários autorizados</p>
+        </div>
+    </div>
+
     <div id="toast-container" class="fixed top-14 right-6 z-[300] flex flex-col gap-2 pointer-events-none"></div>
 
     <!-- MODAL DE HISTÓRICO DE AUDITORIA -->
@@ -73,15 +103,15 @@
         </div>
     </div>
 
-    <!-- MODAL DE LOGIN ADM -->
+    <!-- MODAL DE ELEVAÇÃO PARA MODO EDITAR (ADM) -->
     <div id="login-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] hidden flex items-center justify-center">
         <div class="bg-white p-6 rounded-2xl shadow-2xl w-80 flex flex-col gap-4">
-            <h3 class="font-black text-xs uppercase tracking-wider text-slate-900">Login</h3>
-            <input type="email" id="login-email" placeholder="E-mail" class="w-full p-2 border rounded-lg text-xs outline-none focus:border-[#E30613]">
-            <input type="password" id="login-password" placeholder="Senha" class="w-full p-2 border rounded-lg text-xs outline-none focus:border-[#E30613]">
+            <h3 class="font-black text-xs uppercase tracking-wider text-slate-900">Modo Edição (ADM)</h3>
+            <p class="text-[10px] text-slate-500">Confirme a senha de administrador para liberar privilégios de alteração:</p>
+            <input type="password" id="login-password" placeholder="Senha do Administrador" class="w-full p-2 border rounded-lg text-xs outline-none focus:border-[#E30613]">
             <div class="flex gap-2 mt-2">
                 <button onclick="closeLoginModal()" class="w-1/2 bg-slate-200 text-slate-700 py-2 rounded-xl font-bold text-[10px] uppercase">Cancelar</button>
-                <button onclick="handleLogin()" class="w-1/2 bg-[#E30613] text-white py-2 rounded-xl font-bold text-[10px] uppercase shadow-md hover:bg-red-700">Entrar</button>
+                <button onclick="handleElevateToAdmin()" class="w-1/2 bg-[#E30613] text-white py-2 rounded-xl font-bold text-[10px] uppercase shadow-md hover:bg-red-700">Ativar</button>
             </div>
         </div>
     </div>
@@ -157,9 +187,12 @@
         </div>
         
         <div id="unit-selector" class="hidden md:flex bg-black/10 p-1 rounded-lg gap-0.5 font-black text-[9px] tracking-tighter uppercase text-white"></div>
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-3">
             <button id="btn-adm-auth" onclick="openLoginModal()" class="flex items-center gap-2 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-3 py-1 rounded-md transition-all text-[10px] font-black uppercase">
                 <i data-lucide="lock" class="w-3.5 h-3.5"></i> <span id="adm-btn-text">Editar ✏️</span>
+            </button>
+            <button onclick="handleSignOut()" class="flex items-center gap-1 bg-black/30 hover:bg-black/50 text-white/80 hover:text-white px-2.5 py-1 rounded-md transition-all text-[10px] font-black uppercase" title="Sair do aplicativo">
+                <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Sair
             </button>
             <button id="btn-comparison" onclick="toggleComparison()" class="hidden flex items-center gap-2 bg-white/20 hover:bg-white text-white hover:text-[#E30613] px-3 py-1 rounded-md transition-all text-[10px] font-black uppercase">
                 <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>
@@ -247,7 +280,6 @@
         const db = firebase.firestore();
         const auth = firebase.auth();
 
-        // SUPORTE OFFLINE DO FIRESTORE
         db.enablePersistence({ synchronizeTabs: true }).catch(err => {
             console.log("Aviso de persistência offline:", err.code);
         });
@@ -293,6 +325,43 @@
             }, 2500);
         }
 
+        // LÓGICA DE LOGIN PRINCIPAL DA APLICAÇÃO
+        async function handleMainLogin() {
+            const email = document.getElementById('main-login-email').value.trim();
+            const password = document.getElementById('main-login-password').value.trim();
+
+            if (!email || !password) {
+                showToast("Preencha o e-mail e a senha!", "error");
+                return;
+            }
+
+            try {
+                await auth.signInWithEmailAndPassword(email, password);
+                showToast("Acesso liberado!");
+            } catch (error) {
+                showToast("Erro de acesso: " + error.message, "error");
+            }
+        }
+
+        function handleSignOut() {
+            auth.signOut();
+            isAdmin = false;
+            showToast("Você saiu da aplicação.");
+        }
+
+        // MONITOR A SESSÃO DO USUÁRIO
+        auth.onAuthStateChanged(user => {
+            const loginScreen = document.getElementById('app-login-screen');
+            if (user) {
+                loginScreen.classList.add('hidden');
+                loadYearsList();
+            } else {
+                loginScreen.classList.remove('hidden');
+                if (unsubscribeFleet) unsubscribeFleet();
+                if (unsubscribeSlots) unsubscribeSlots();
+            }
+        });
+
         // REGISTRO DE AUDITORIA NO FIRESTORE
         async function logAuditAction(truckDocId, actionDescription) {
             try {
@@ -302,9 +371,7 @@
                     action: actionDescription,
                     timestamp: firebase.firestore.FieldValue.serverTimestamp()
                 });
-            } catch (e) {
-                console.error("Erro ao registrar log de auditoria:", e);
-            }
+            } catch (e) { console.error("Erro ao registrar log:", e); }
         }
 
         async function openAuditModal() {
@@ -338,31 +405,10 @@
                         </div>
                     `;
                 }).join('');
-            } catch (err) {
-                logsContainer.innerHTML = `<span class="text-red-500 text-center block py-4">Erro ao carregar logs.</span>`;
-            }
+            } catch (err) { logsContainer.innerHTML = `<span class="text-red-500 text-center block py-4">Erro ao carregar logs.</span>`; }
         }
 
-        function closeAuditModal() {
-            document.getElementById('audit-modal').classList.add('hidden');
-        }
-
-        auth.onAuthStateChanged(user => {
-            if (user) {
-                isAdmin = true;
-                document.getElementById('adm-btn-text').innerText = "Sair";
-                document.getElementById('adm-fields-container').classList.remove('hidden');
-                document.getElementById('btn-add-truck').classList.remove('hidden');
-                document.getElementById('btn-add-year').classList.remove('hidden');
-            } else {
-                isAdmin = false;
-                document.getElementById('adm-btn-text').innerText = "Editar ✏️";
-                document.getElementById('adm-fields-container').classList.add('hidden');
-                document.getElementById('btn-add-truck').classList.add('hidden');
-                document.getElementById('btn-add-year').classList.add('hidden');
-            }
-            render();
-        });
+        function closeAuditModal() { document.getElementById('audit-modal').classList.add('hidden'); }
 
         let unsubscribeFleet = null;
         function loadDataFromFirebase() {
@@ -475,18 +521,30 @@
         }
 
         function openLoginModal() {
-            if (isAdmin) { auth.signOut(); showToast("Você saiu do modo de edição."); } 
-            else { document.getElementById('login-modal').classList.remove('hidden'); }
+            if (isAdmin) { 
+                isAdmin = false;
+                document.getElementById('adm-btn-text').innerText = "Editar ✏️";
+                document.getElementById('adm-fields-container').classList.add('hidden');
+                document.getElementById('btn-add-truck').classList.add('hidden');
+                document.getElementById('btn-add-year').classList.add('hidden');
+                showToast("Modo edição desativado.");
+                render();
+            } else { 
+                document.getElementById('login-modal').classList.remove('hidden'); 
+            }
         }
         function closeLoginModal() { document.getElementById('login-modal').classList.add('hidden'); }
-        async function handleLogin() {
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
-            try {
-                await auth.signInWithEmailAndPassword(email, password);
-                closeLoginModal();
-                showToast("Modo de edição ativado!");
-            } catch (error) { showToast("Erro de login: " + error.message, "error"); }
+        
+        async function handleElevateToAdmin() {
+            // No modo de edição simplificado, ativamos as opções ADM
+            isAdmin = true;
+            document.getElementById('adm-btn-text').innerText = "Modo Leitura";
+            document.getElementById('adm-fields-container').classList.remove('hidden');
+            document.getElementById('btn-add-truck').classList.remove('hidden');
+            document.getElementById('btn-add-year').classList.remove('hidden');
+            closeLoginModal();
+            showToast("Modo de edição ativado!");
+            render();
         }
 
         async function addNewTruck() {
@@ -846,7 +904,6 @@
                     .catch(err => console.log('Erro ao registrar PWA:', err));
             });
         }
-        window.onload = loadYearsList;
     </script>
 </body>
 </html>
