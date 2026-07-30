@@ -14,10 +14,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <!-- Biblioteca HTML2PDF -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    
-    <!-- SDKs do Firebase (Versão Compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -53,7 +49,6 @@
         @keyframes toastIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .toast-animate { animation: toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
-        /* ESTILOS DA TELA DE LOGIN */
         .login-bg-modern {
             background: radial-gradient(circle at 50% 10%, #1e1112 0%, #0b0f17 60%, #030712 100%);
         }
@@ -77,7 +72,6 @@
 
 <body class="bg-[#F8FAFC] text-slate-900 h-screen flex flex-col">
 
-    <!-- TELA DE LOGIN -->
     <div id="app-login-screen" class="fixed inset-0 z-[500] login-bg-modern flex items-center justify-center p-4">
         <div class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#E30613]/20 blur-[120px] rounded-full pointer-events-none"></div>
         <div class="w-full max-w-md login-glass-card rounded-3xl p-8 flex flex-col items-center relative z-10 transition-all">
@@ -99,21 +93,21 @@
 
             <div class="w-full space-y-4">
                 <div>
-                    <label class="text-[10px] font-black text-slate-300 uppercase block mb-1.5 ml-1">E-mail Corporativo</label>
+                    <label class="text-[10px] font-black text-slate-300 uppercase block mb-1.5 ml-1">E-mail</label>
                     <div class="relative">
                         <i data-lucide="mail" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
                         <input type="email" id="main-login-email" placeholder="adm@costabrasil.com.br" class="w-full pl-10 pr-4 py-3 bg-slate-950/70 border border-slate-700/60 rounded-xl text-xs font-bold text-white outline-none focus:border-[#E30613]">
                     </div>
                 </div>
                 <div>
-                    <label class="text-[10px] font-black text-slate-300 uppercase block mb-1.5 ml-1">Senha de Acesso</label>
+                    <label class="text-[10px] font-black text-slate-300 uppercase block mb-1.5 ml-1">Senha</label>
                     <div class="relative">
                         <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
                         <input type="password" id="main-login-password" onkeypress="if(event.key==='Enter') handleMainLogin();" placeholder="••••••••" class="w-full pl-10 pr-4 py-3 bg-slate-950/70 border border-slate-700/60 rounded-xl text-xs font-bold text-white outline-none focus:border-[#E30613]">
                     </div>
                 </div>
                 <button onclick="handleMainLogin()" id="btn-login-submit" class="w-full btn-glow-red text-white font-black text-xs py-3.5 rounded-xl uppercase tracking-[0.18em] transition-all flex items-center justify-center gap-2 mt-2">
-                    <i data-lucide="log-in" class="w-4 h-4"></i> ACESSAR SISTEMA
+                    <i data-lucide="log-in" class="w-4 h-4"></i> ACESSAR
                 </button>
             </div>
             <div class="mt-8 pt-4 border-t border-slate-800/80 w-full text-center">
@@ -124,24 +118,22 @@
         </div>
     </div>
 
-    <!-- MODAL DE DASHBOARD SEPARADO POR CICLOS NAS UNIDADES -->
     <div id="dashboard-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl p-6 shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+        <div class="bg-white rounded-3xl p-6 shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
             <div class="flex justify-between items-center border-b pb-4 mb-4">
                 <div class="flex items-center gap-2 text-slate-900">
                     <div class="bg-[#E30613] p-1.5 rounded-xl text-white">
                         <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
                     </div>
                     <div>
-                        <h3 class="font-black text-sm uppercase tracking-wider">Dashboard de Indicadores por Ciclo</h3>
-                        <p class="text-[10px] text-slate-400 font-bold uppercase">Cobertura Fotográfica da Frota • Ano <span id="dash-year-label">2025</span></p>
+                        <h3 class="font-black text-sm uppercase tracking-wider">Dashboard</h3>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase">Imagens Frota • Ano <span id="dash-year-label">2025</span></p>
                     </div>
                 </div>
                 <button onclick="closeDashboardModal()" class="text-slate-400 hover:text-red-600"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
 
             <div class="flex-1 overflow-y-auto custom-scrollbar space-y-6 pr-1">
-                <!-- CARDS DE RESUMO GERAL -->
                 <div class="grid grid-cols-3 gap-3">
                     <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 flex flex-col">
                         <span class="text-[9px] font-black text-slate-400 uppercase">Total de Veículos</span>
@@ -152,15 +144,14 @@
                         <span id="dash-notes-trucks" class="text-2xl font-black text-[#E30613] mt-1">0</span>
                     </div>
                     <div class="bg-slate-900 p-3.5 rounded-2xl text-white flex flex-col">
-                        <span class="text-[9px] font-black text-slate-400 uppercase">Cobertura Global</span>
+                        <span class="text-[9px] font-black text-slate-400 uppercase">Progresso Total</span>
                         <span id="dash-photo-progress" class="text-2xl font-black text-emerald-400 mt-1">0%</span>
                     </div>
                 </div>
 
-                <!-- SEÇÃO SEPARADA POR CADA UM DOS 3 CICLOS NAS UNIDADES -->
                 <div class="space-y-4">
                     <h4 class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                        <i data-lucide="map-pin" class="w-3.5 h-3.5 text-[#E30613]"></i> Cobertura por Ciclo (Pelo menos 1 Foto por Veículo)
+                        <i data-lucide="map-pin" class="w-3.5 h-3.5 text-[#E30613]"></i> Progresso por ciclos
                     </h4>
                     <div id="dash-cycles-breakdown" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
                 </div>
@@ -168,12 +159,9 @@
         </div>
     </div>
 
-    <!-- CONTAINER OCULTO PARA IMPRESSÃO DE PDF -->
-    <div id="pdf-render-template" style="position: absolute; left: -9999px; top: -9999px; width: 1100px;"></div>
 
     <div id="toast-container" class="fixed top-14 right-6 z-[300] flex flex-col gap-2 pointer-events-none"></div>
 
-    <!-- MODAL DE HISTÓRICO DE AUDITORIA -->
     <div id="audit-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] hidden flex items-center justify-center">
         <div class="bg-white p-6 rounded-2xl shadow-2xl w-[450px] max-h-[80vh] flex flex-col">
             <div class="flex justify-between items-center border-b pb-3 mb-3">
@@ -189,7 +177,6 @@
         </div>
     </div>
 
-    <!-- MODAL DE ELEVAÇÃO PARA MODO EDITAR (ADM) -->
     <div id="login-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] hidden flex items-center justify-center">
         <div class="bg-white p-6 rounded-2xl shadow-2xl w-80 flex flex-col gap-4">
             <h3 class="font-black text-xs uppercase tracking-wider text-slate-900">Modo Edição (ADM)</h3>
@@ -202,7 +189,6 @@
         </div>
     </div>
 
-    <!-- BARRA DE PROGRESSO DO PDF -->
     <div id="global-progress-container">
         <div id="global-progress-text" class="flex items-center gap-2">
             <i data-lucide="refresh-cw" class="w-3 h-3 text-[#E30613] animate-spin"></i>
@@ -459,7 +445,6 @@
             lucide.createIcons();
         });
 
-        // DASHBOARD ATUALIZADO: CÁLCULO INDIVIDUAL POR CICLO COM CRITÉRIO DE 1 FOTO
         async function openDashboardModal() {
             document.getElementById('dashboard-modal').classList.remove('hidden');
             document.getElementById('dash-year-label').innerText = activeYear;
@@ -470,10 +455,8 @@
             document.getElementById('dash-total-trucks').innerText = totalTrucks;
             document.getElementById('dash-notes-trucks').innerText = notesTrucks;
 
-            // Busca todas as imagens salvas nas subcoleções dos slots
             const slotsSnapshot = await db.collectionGroup("slots").get().catch(() => null);
             
-            // Mapeia quais slots têm imagem por veículo e ciclo
             let imagesMap = {};
             if (slotsSnapshot) {
                 slotsSnapshot.forEach(doc => {
@@ -486,7 +469,6 @@
                 });
             }
 
-            // Estrutura para armazenar Veículos Ativos vs Veículos com pelo menos 1 foto por Ciclo
             let cycleStats = [
                 { totalActive: 0, withPhoto: 0, units: {} },
                 { totalActive: 0, withPhoto: 0, units: {} },
@@ -499,7 +481,6 @@
                 cycleStats[2].units[u] = { active: 0, withPhoto: 0 };
             });
 
-            // Analisa cada veículo cadastrado no ano
             rawFleetDocs.forEach(truck => {
                 if (!truck.cycleUnits) return;
 
@@ -508,7 +489,6 @@
                         cycleStats[cycleIdx].totalActive++;
                         cycleStats[cycleIdx].units[assignedUnit].active++;
 
-                        // Verifica se o veículo tem PELO MENOS 1 FOTO no ciclo atual
                         const truckSlots = imagesMap[truck.docId] || {};
                         const hasAtLeastOnePhoto = [1, 2, 3, 4].some(s => 
                             truckSlots[`c${cycleIdx}_s${s}`] || 
@@ -523,14 +503,12 @@
                 });
             });
 
-            // Porcentagem geral de cobertura fotográfica considerando todos os ciclos ativos
             const globalActive = cycleStats.reduce((sum, c) => sum + c.totalActive, 0);
             const globalWithPhoto = cycleStats.reduce((sum, c) => sum + c.withPhoto, 0);
             const globalPercent = globalActive > 0 ? Math.round((globalWithPhoto / globalActive) * 100) : 0;
 
             document.getElementById('dash-photo-progress').innerText = `${globalPercent}%`;
 
-            // Renderiza o detalhamento dos 3 Ciclos separados por Unidade
             const cyclesBreakdownContainer = document.getElementById('dash-cycles-breakdown');
             cyclesBreakdownContainer.innerHTML = [0, 1, 2].map(cycleIdx => {
                 const stats = cycleStats[cycleIdx];
@@ -544,7 +522,7 @@
                                 <span class="text-[9px] font-bold text-slate-400 italic block">${cycleInfo[cycleIdx].range}</span>
                             </div>
                             <span class="text-xs font-black ${cyclePercent === 100 ? 'text-emerald-600 bg-emerald-50' : 'text-[#E30613] bg-red-50'} px-2 py-1 rounded-lg border border-slate-200">
-                                ${cyclePercent}% Cobertura
+                                ${cyclePercent}% Progesso
                             </span>
                         </div>
                         
@@ -581,7 +559,6 @@
             document.getElementById('dashboard-modal').classList.add('hidden');
         }
 
-        // APLICAÇÃO DE MARCA D'ÁGUA COM DATA E UNIDADE
         function addWatermarkToImage(file, unitName) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
