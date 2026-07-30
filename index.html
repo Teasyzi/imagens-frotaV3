@@ -459,65 +459,123 @@
             lucide.createIcons();
         });
 
-        // DASHBOARD / ESTATÍSTICAS DA FROTA SEPARADO POR CICLOS NAS UNIDADES
-        async function openDashboardModal() {
-            document.getElementById('dashboard-modal').classList.remove('hidden');
-            document.getElementById('dash-year-label').innerText = activeYear;
+// DASHBOARD ATUALIZADO: CÁLCULO INDIVIDUAL POR CICLO COM CRITÉRIO DE 1 FOTO
+async function openDashboardModal() {
+    document.getElementById('dashboard-modal').classList.remove('hidden');
+    document.getElementById('dash-year-label').innerText = activeYear;
 
-            const totalTrucks = rawFleetDocs.length;
-            const notesTrucks = rawFleetDocs.filter(t => t.notes || t.transfer).length;
+    const totalTrucks = rawFleetDocs.length;
+    const notesTrucks = rawFleetDocs.filter(t => t.notes || t.transfer).length;
 
-            document.getElementById('dash-total-trucks').innerText = totalTrucks;
-            document.getElementById('dash-notes-trucks').innerText = notesTrucks;
+    document.getElementById('dash-total-trucks').innerText = totalTrucks;
+    document.getElementById('dash-notes-trucks').innerText = notesTrucks;
 
-            // Calcula contagem separada por Ciclo (0, 1, 2) e Unidade
-            let cycleUnitCounts = [
-                { "CB NORTE": 0, "CB SUL": 0, "BARREIRAS": 0, "JUAZEIRO": 0, "OT": 0 },
-                { "CB NORTE": 0, "CB SUL": 0, "BARREIRAS": 0, "JUAZEIRO": 0, "OT": 0 },
-                { "CB NORTE": 0, "CB SUL": 0, "BARREIRAS": 0, "JUAZEIRO": 0, "OT": 0 }
-            ];
+    // Busca todas as imagens salvas nas subcoleções dos slots
+    const slotsSnapshot = await db.collectionGroup("slots").get().catch(() => null);
+    
+    // Mapeia quais slots têm imagem por veículo e ciclo (ex: imagesMap['2025_155']['c0_s1'] = true)
+    let imagesMap = {};
+    if (slotsSnapshot) {
+        slotsSnapshot.forEach(doc => {
+            const pathSegments = doc.ref.path.split('/'); // path: fleet/2025_155/slots/c0_s1
+            const truckDocId = pathSegments[1];
+            const slotDocId = doc.id; // c0_s1
 
-            rawFleetDocs.forEach(t => {
-                if (t.cycleUnits) {
-                    t.cycleUnits.forEach((unit, cycleIdx) => {
-                        if (unit && cycleUnitCounts[cycleIdx] && cycleUnitCounts[cycleIdx][unit] !== undefined) {
-                            cycleUnitCounts[cycleIdx][unit]++;
-                        }
-                    });
+            if (!imagesMap[truckDocId]) imagesMap[truckDocId] = {};
+            imagesMap[truckDocId][slotDocId] = true;
+        });
+    }
+
+    // Estrutura para armazenar Veículos Ativos vs Veículos com pelo menos 1 foto por Ciclo
+    let cycleStats = [
+        { totalActive: 0, withPhoto: 0, units: {} },
+        { totalActive: 0, withPhoto: 0, units: {} },
+        { totalActive: 0, withPhoto: 0, units: {} }
+    ];
+
+    ALL_UNITS.forEach(u => {
+        cycleStats[0].units[u] = { active: 0, withPhoto: 0 };
+        cycleStats[1].units[u] = { active: 0, withPhoto: 0 };
+        cycleStats[2].units[u] = { active: 0, withPhoto: 0 };
+    });
+
+    // Analisa cada veículo cadastrado no ano
+    rawFleetDocs.forEach(truck => {
+        if (!truck.cycleUnits) return;
+
+        truck.cycleUnits.forEach((assignedUnit, cycleIdx) => {
+            if (assignedUnit && ALL_UNITS.includes(assignedUnit)) {
+                cycleStats[cycleIdx].totalActive++;
+                cycleStats[cycleIdx].units[assignedUnit].active++;
+
+                // Verifica se o veículo tem PELO MENOS 1 FOTO no ciclo atual (slots 1, 2, 3 ou 4)
+                const truckSlots = imagesMap[truck.docId] || {};
+                const hasAtLeastOnePhoto = [1, 2, 3, 4].some(s => 
+                    truckSlots[`c${cycleIdx}_s${s}`] || 
+                    (truck.legacyImages && truck.legacyImages[`c${cycleIdx}_s${s}`])
+                );
+
+                if (hasAtLeastOnePhoto) {
+                    cycleStats[cycleIdx].withPhoto++;
+                    cycleStats[cycleIdx].units[assignedUnit].withPhoto++;
                 }
-            });
+            }
+        });
+    });
 
-            // Renderiza 3 colunas de Ciclo contendo o detalhamento por unidade
-            const cyclesBreakdownContainer = document.getElementById('dash-cycles-breakdown');
-            cyclesBreakdownContainer.innerHTML = [0, 1, 2].map(cycleIdx => {
-                const counts = cycleUnitCounts[cycleIdx];
-                return `
-                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col gap-3">
-                        <div class="border-b pb-2 flex justify-between items-center">
-                            <span class="text-xs font-black text-slate-800 uppercase tracking-wider">${cycleInfo[cycleIdx].label}</span>
-                            <span class="text-[9px] font-bold text-slate-400 italic">${cycleInfo[cycleIdx].range}</span>
-                        </div>
-                        <div class="space-y-2">
-                            ${ALL_UNITS.map(unit => {
-                                const count = counts[unit] || 0;
-                                const percent = totalTrucks > 0 ? Math.round((count / totalTrucks) * 100) : 0;
-                                return `
-                                    <div>
-                                        <div class="flex justify-between items-center text-[9px] font-bold text-slate-600 mb-0.5">
-                                            <span>${unit}</span>
-                                            <span class="font-black text-slate-800">${count} (${percent}%)</span>
-                                        </div>
-                                        <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                                            <div class="bg-[#E30613] h-full" style="width: ${percent}%"></div>
-                                        </div>
-                                    </div>
-                                `;
-                            }).join('')}
-                        </div>
+    // Porcentagem geral de cobertura fotográfica considerando todos os ciclos ativos
+    const globalActive = cycleStats.reduce((sum, c) => sum + c.totalActive, 0);
+    const globalWithPhoto = cycleStats.reduce((sum, c) => sum + c.withPhoto, 0);
+    const globalPercent = globalActive > 0 ? Math.round((globalWithPhoto / globalActive) * 100) : 0;
+
+    document.getElementById('dash-photo-progress').innerText = `${globalPercent}%`;
+
+    // Renderiza o detalhamento dos 3 Ciclos separados por Unidade
+    const cyclesBreakdownContainer = document.getElementById('dash-cycles-breakdown');
+    cyclesBreakdownContainer.innerHTML = [0, 1, 2].map(cycleIdx => {
+        const stats = cycleStats[cycleIdx];
+        const cyclePercent = stats.totalActive > 0 ? Math.round((stats.withPhoto / stats.totalActive) * 100) : 0;
+
+        return `
+            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col gap-3">
+                <div class="border-b pb-2 flex justify-between items-center">
+                    <div>
+                        <span class="text-xs font-black text-slate-800 uppercase tracking-wider">${cycleInfo[cycleIdx].label}</span>
+                        <span class="text-[9px] font-bold text-slate-400 italic block">${cycleInfo[cycleIdx].range}</span>
                     </div>
-                `;
-            }).join('');
+                    <span class="text-xs font-black ${cyclePercent === 100 ? 'text-emerald-600 bg-emerald-50' : 'text-[#E30613] bg-red-50'} px-2 py-1 rounded-lg border border-slate-200">
+                        ${cyclePercent}% Cobertura
+                    </span>
+                </div>
+                
+                <div class="space-y-2.5">
+                    ${ALL_UNITS.map(unit => {
+                        const unitData = stats.units[unit];
+                        const activeCount = unitData.active;
+                        const photoCount = unitData.withPhoto;
+                        const unitPercent = activeCount > 0 ? Math.round((photoCount / activeCount) * 100) : 0;
 
+                        return `
+                            <div>
+                                <div class="flex justify-between items-center text-[9px] font-bold text-slate-600 mb-0.5">
+                                    <span>${unit}</span>
+                                    <span class="font-black ${unitPercent === 100 ? 'text-emerald-600' : 'text-slate-800'}">
+                                        ${photoCount}/${activeCount} veíq. (${unitPercent}%)
+                                    </span>
+                                </div>
+                                <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                                    <div class="${unitPercent === 100 ? 'bg-emerald-500' : 'bg-[#E30613]'} h-full" style="width: ${unitPercent}%"></div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    lucide.createIcons();
+}
             // Progresso aproximado de fotos salvas
             let totalSlots = totalTrucks * 12;
             let filledSlots = 0;
