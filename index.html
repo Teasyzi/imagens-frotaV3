@@ -50,38 +50,66 @@
         
         @keyframes toastIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .toast-animate { animation: toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        /* ESTILOS DA TELA DE LOGIN PREMIUM */
+        .login-bg-glow {
+            background: radial-gradient(circle at 50% -20%, rgba(227, 6, 19, 0.25) 0%, rgba(15, 23, 42, 1) 70%);
+        }
+        .login-card-glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
     </style>
 </head>
 
 <body class="bg-[#F8FAFC] text-slate-900 h-screen flex flex-col">
 
-    <!-- TELA DE LOGIN BLOQUEANTE (SPLASH DE ENTRADA) -->
-    <div id="app-login-screen" class="fixed inset-0 bg-slate-950 z-[500] flex items-center justify-center p-4">
-        <div class="w-full max-w-sm bg-white rounded-3xl p-8 shadow-2xl flex flex-col items-center border border-slate-100">
-            <!-- Ícone / Logo -->
-            <div class="bg-[#E30613] p-4 rounded-2xl shadow-lg mb-4 text-white">
-                <i data-lucide="truck" class="w-8 h-8"></i>
-            </div>
+    <!-- TELA DE LOGIN MODERNA E ELEGANTE -->
+    <div id="app-login-screen" class="fixed inset-0 z-[500] login-bg-glow flex items-center justify-center p-4">
+        <div class="w-full max-w-md login-card-glass rounded-3xl p-8 shadow-2xl flex flex-col items-center relative overflow-hidden">
             
-            <h1 class="text-xs font-black tracking-[0.25em] text-[#E30613] uppercase italic">CB Distribuidora</h1>
-            <h2 class="text-xl font-black text-slate-900 tracking-tight mt-1 mb-6">Controle de Imagens Frota</h2>
+            <!-- Brilho sutil no topo do card -->
+            <div class="absolute -top-12 left-1/2 -translate-x-1/2 w-48 h-24 bg-[#E30613]/30 blur-2xl rounded-full"></div>
 
-            <div class="w-full space-y-3">
-                <div>
-                    <label class="text-[9px] font-black text-slate-400 uppercase block mb-1">E-mail de Acesso</label>
-                    <input type="email" id="main-login-email" placeholder="usuario@cb.com.br" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-[#E30613] focus:bg-white transition-all">
+            <!-- LOGO DA EMPRESA (Procura por logo.png ou exibe o ícone) -->
+            <div class="relative z-10 flex flex-col items-center mb-6">
+                <div class="w-20 h-20 rounded-2xl bg-white/10 border border-white/20 p-3 shadow-xl flex items-center justify-center mb-3">
+                    <img src="logo.png" onerror="this.onerror=null; this.src='icon-192.png'; this.onerror=function(){ this.parentElement.innerHTML='<i data-lucide=\'truck\' class=\'w-10 h-10 text-[#E30613]\'></i>'; lucide.createIcons(); };" class="max-w-full max-h-full object-contain" alt="Logo CB Frota">
                 </div>
+                <span class="text-[10px] font-black tracking-[0.3em] text-[#E30613] uppercase italic">CB Distribuidora</span>
+                <h2 class="text-xl font-black text-white tracking-tight">Controle de Frota</h2>
+            </div>
+
+            <!-- FORMULÁRIO DE LOGIN -->
+            <div class="w-full space-y-4 relative z-10">
                 <div>
-                    <label class="text-[9px] font-black text-slate-400 uppercase block mb-1">Senha</label>
-                    <input type="password" id="main-login-password" placeholder="••••••••" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-[#E30613] focus:bg-white transition-all">
+                    <label class="text-[10px] font-black text-slate-300 uppercase block mb-1.5 ml-1">E-mail Corporativo</label>
+                    <div class="relative">
+                        <i data-lucide="mail" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                        <input type="email" id="main-login-email" placeholder="usuario@cb.com.br" class="w-full pl-10 pr-4 py-3 bg-slate-900/80 border border-slate-700/80 rounded-xl text-xs font-bold text-white placeholder:text-slate-500 outline-none focus:border-[#E30613] focus:ring-2 focus:ring-[#E30613]/20 transition-all">
+                    </div>
                 </div>
 
-                <button onclick="handleMainLogin()" id="btn-login-submit" class="w-full bg-[#E30613] hover:bg-red-700 text-white font-black text-xs py-3.5 rounded-xl uppercase tracking-widest shadow-lg shadow-red-500/20 transition-all flex items-center justify-center gap-2 mt-2">
-                    <i data-lucide="log-in" class="w-4 h-4"></i> Entrar no Sistema
+                <div>
+                    <label class="text-[10px] font-black text-slate-300 uppercase block mb-1.5 ml-1">Senha de Acesso</label>
+                    <div class="relative">
+                        <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                        <input type="password" id="main-login-password" onkeypress="if(event.key==='Enter') handleMainLogin();" placeholder="••••••••" class="w-full pl-10 pr-4 py-3 bg-slate-900/80 border border-slate-700/80 rounded-xl text-xs font-bold text-white placeholder:text-slate-500 outline-none focus:border-[#E30613] focus:ring-2 focus:ring-[#E30613]/20 transition-all">
+                    </div>
+                </div>
+
+                <button onclick="handleMainLogin()" id="btn-login-submit" class="w-full bg-[#E30613] hover:bg-red-700 text-white font-black text-xs py-3.5 rounded-xl uppercase tracking-[0.15em] shadow-lg shadow-red-600/30 hover:shadow-red-600/50 transition-all flex items-center justify-center gap-2 mt-2">
+                    <i data-lucide="log-in" class="w-4 h-4"></i> ACESSAR SISTEMA
                 </button>
             </div>
 
-            <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider text-center mt-6">Acesso restrito para funcionários autorizados</p>
+            <!-- Rodapé informativo -->
+            <div class="mt-8 pt-4 border-t border-slate-700/50 w-full text-center relative z-10">
+                <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center justify-center gap-1.5">
+                    <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-500"></i> Acesso Restrito • Uso Interno
+                </span>
+            </div>
         </div>
     </div>
 
@@ -349,7 +377,6 @@
             showToast("Você saiu da aplicação.");
         }
 
-        // MONITOR A SESSÃO DO USUÁRIO
         auth.onAuthStateChanged(user => {
             const loginScreen = document.getElementById('app-login-screen');
             if (user) {
@@ -360,6 +387,7 @@
                 if (unsubscribeFleet) unsubscribeFleet();
                 if (unsubscribeSlots) unsubscribeSlots();
             }
+            lucide.createIcons();
         });
 
         // REGISTRO DE AUDITORIA NO FIRESTORE
@@ -536,7 +564,6 @@
         function closeLoginModal() { document.getElementById('login-modal').classList.add('hidden'); }
         
         async function handleElevateToAdmin() {
-            // No modo de edição simplificado, ativamos as opções ADM
             isAdmin = true;
             document.getElementById('adm-btn-text').innerText = "Modo Leitura";
             document.getElementById('adm-fields-container').classList.remove('hidden');
