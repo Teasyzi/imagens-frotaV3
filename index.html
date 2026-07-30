@@ -14,6 +14,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     
+    <!-- Biblioteca HTML2PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
     <!-- SDKs do Firebase (Versão Compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
@@ -39,6 +42,13 @@
         .drag-over-slot { border: 2px dashed #2563eb !important; background-color: #eff6ff !important; transform: scale(1.02); }
         .img-placeholder-icon { opacity: 1; color: #cbd5e1; transition: opacity 0.3s; }
         img:not([src]), img[src=""], img[style*="display: none"] { opacity: 0 !important; visibility: hidden !important; width: 0 !important; height: 0 !important; }
+        #options-menu { transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); z-index: 60; }
+        #options-menu.open { transform: translateX(0); }
+        #global-progress-container { display: none; position: fixed; bottom: 0; left: 0; width: 100%; height: 35px; background: #000000; z-index: 10000; padding: 0 20px; align-items: center; border-top: 1px solid #E30613; }
+        #progress-track { flex: 1; height: 3px; background: rgba(227, 6, 19, 0.2); border-radius: 10px; overflow: hidden; margin: 0 15px; }
+        #global-progress-bar { width: 0%; height: 100%; background: #E30613; transition: width 0.4s ease; }
+        #global-progress-text { color: white; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
+        #progress-percent-text { color: #E30613; font-size: 10px; font-weight: 900; min-width: 40px; text-align: right; margin-right: 15px; }
         
         @keyframes toastIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .toast-animate { animation: toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
@@ -114,6 +124,53 @@
         </div>
     </div>
 
+    <!-- MODAL DE DASHBOARD / RESUMO DE INDICADORES (PONTO 2) -->
+    <div id="dashboard-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b pb-4 mb-4">
+                <div class="flex items-center gap-2 text-slate-900">
+                    <div class="bg-[#E30613] p-1.5 rounded-xl text-white">
+                        <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-black text-sm uppercase tracking-wider">Dashboard de Indicadores</h3>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase">Resumo da Frota • <span id="dash-year-label">2025</span></p>
+                    </div>
+                </div>
+                <button onclick="closeDashboardModal()" class="text-slate-400 hover:text-red-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto custom-scrollbar space-y-6 pr-1">
+                <!-- CARDS DE ESTATÍSTICA RÁPIDA -->
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 flex flex-col">
+                        <span class="text-[9px] font-black text-slate-400 uppercase">Total de Veículos</span>
+                        <span id="dash-total-trucks" class="text-2xl font-black text-slate-900 mt-1">0</span>
+                    </div>
+                    <div class="bg-red-50 p-3.5 rounded-2xl border border-red-100 flex flex-col">
+                        <span class="text-[9px] font-black text-[#E30613] uppercase">Com Observação</span>
+                        <span id="dash-notes-trucks" class="text-2xl font-black text-[#E30613] mt-1">0</span>
+                    </div>
+                    <div class="bg-slate-900 p-3.5 rounded-2xl text-white flex flex-col">
+                        <span class="text-[9px] font-black text-slate-400 uppercase">Progresso de Fotos</span>
+                        <span id="dash-photo-progress" class="text-2xl font-black text-emerald-400 mt-1">0%</span>
+                    </div>
+                </div>
+
+                <!-- DISTRIBUIÇÃO POR UNIDADES -->
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <h4 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                        <i data-lucide="map-pin" class="w-3.5 h-3.5 text-[#E30613]"></i> Veículos por Unidade Operacional
+                    </h4>
+                    <div id="dash-units-breakdown" class="space-y-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTAINER OCULTO PARA IMPRESSÃO DE PDF -->
+    <div id="pdf-render-template" style="position: absolute; left: -9999px; top: -9999px; width: 1100px;"></div>
+
     <div id="toast-container" class="fixed top-14 right-6 z-[300] flex flex-col gap-2 pointer-events-none"></div>
 
     <!-- MODAL DE HISTÓRICO DE AUDITORIA -->
@@ -145,9 +202,66 @@
         </div>
     </div>
 
+    <!-- BARRA DE PROGRESSO DO PDF -->
+    <div id="global-progress-container">
+        <div id="global-progress-text" class="flex items-center gap-2">
+            <i data-lucide="refresh-cw" class="w-3 h-3 text-[#E30613] animate-spin"></i>
+            <span>GERANDO PDF PROFISSIONAL...</span>
+        </div>
+        <div id="progress-track">
+            <div id="global-progress-bar"></div>
+        </div>
+        <div id="progress-percent-text">0%</div>
+        <button onclick="cancelPDFGeneration()" class="bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white text-[8px] font-black px-3 py-1 rounded border border-red-600/50 transition-all uppercase italic">Cancelar</button>
+    </div>
+
     <div id="lightbox-modal" onclick="this.style.display='none'">
         <img id="lightbox-img" src="" class="max-w-[95%] max-h-[95%] object-contain rounded-lg shadow-2xl" alt="Visualização expandida">
     </div>
+
+    <button id="btn-open-menu" onclick="toggleMenu()" class="fixed bottom-12 right-6 z-50 bg-slate-900 text-white p-2.5 rounded-full shadow-xl hover:bg-[#E30613] transition-all scale-90 hover:scale-100">
+        <i data-lucide="menu" class="w-4 h-4"></i>
+    </button>
+
+    <aside id="options-menu" class="fixed top-0 right-0 h-full w-80 bg-white shadow-2xl flex flex-col border-l border-slate-200">
+        <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+            <h2 class="font-black text-[10px] uppercase tracking-widest text-slate-900">OPÇÕES & EXPORTAÇÃO</h2>
+            <button onclick="toggleMenu()" class="text-slate-400 hover:text-red-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        <div class="p-6 flex-1 overflow-y-auto custom-scrollbar space-y-6">
+            <button onclick="exportFleetToExcel()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-wider shadow flex items-center justify-center gap-2">
+                <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Exportar Frota em Excel (.CSV)
+            </button>
+            <hr class="border-slate-100">
+            <div>
+                <label class="text-[9px] font-black text-slate-400 uppercase mb-3 block italic">1. Selecionar Unidade para PDF</label>
+                <select id="pdf-unit-filter" onchange="updatePDFList()" class="w-full p-2.5 bg-slate-100 border-none rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-[#E30613]/20">
+                    <option value="TODAS AS UNIDADES">TODAS AS UNIDADES</option>
+                    <option value="CB NORTE">CB NORTE</option>
+                    <option value="CB SUL">CB SUL</option>
+                    <option value="BARREIRAS">BARREIRAS</option>
+                    <option value="JUAZEIRO">JUAZEIRO</option>
+                    <option value="OT">OT</option>
+                </select>
+            </div>
+            <div>
+                <div class="flex justify-between items-center mb-3">
+                    <label class="text-[9px] font-black text-slate-400 uppercase block italic">2. Selecione os veículos</label>
+                    <div class="flex gap-2">
+                        <button onclick="selectAllTrucks(true)" class="text-[8px] font-bold text-[#E30613] hover:underline">Marcar todos</button>
+                        <span class="text-slate-300">|</span>
+                        <button onclick="selectAllTrucks(false)" class="text-[8px] font-bold text-slate-400 hover:underline">Nenhum</button>
+                    </div>
+                </div>
+                <div id="pdf-truck-selection" class="space-y-1 max-h-60 overflow-y-auto pr-2 custom-scrollbar border rounded-lg p-2 bg-slate-50/50"></div>
+            </div>
+        </div>
+        <div class="p-6 bg-slate-50 border-t border-slate-100">
+            <button id="btn-generate-pdf" onclick="downloadCombinedPDF()" class="w-full bg-[#E30613] text-white py-3.5 rounded-xl font-black text-[9px] uppercase tracking-[0.2em] shadow-lg hover:bg-red-700 transition-all flex items-center justify-center gap-2">
+                <i data-lucide="layers" class="w-4 h-4"></i> Gerar PDF Lote
+            </button>
+        </div>
+    </aside>
 
     <header class="bg-[#E30613] text-white h-11 flex justify-between items-center px-6 shrink-0 z-30 shadow-md">
         <div class="flex items-center gap-3">
@@ -165,6 +279,12 @@
         
         <div id="unit-selector" class="hidden md:flex bg-black/10 p-1 rounded-lg gap-0.5 font-black text-[9px] tracking-tighter uppercase text-white"></div>
         <div class="flex items-center gap-3">
+            <button onclick="openDashboardModal()" class="flex items-center gap-1.5 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-2.5 py-1 rounded-md transition-all text-[10px] font-black uppercase" title="Ver estatísticas da frota">
+                <i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i> Dashboard
+            </button>
+            <button onclick="exportFleetToExcel()" class="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 text-white px-2.5 py-1 rounded-md transition-all text-[10px] font-black uppercase" title="Exportar dados para Excel">
+                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> Excel
+            </button>
             <button id="btn-adm-auth" onclick="openLoginModal()" class="flex items-center gap-2 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-3 py-1 rounded-md transition-all text-[10px] font-black uppercase">
                 <i data-lucide="lock" class="w-3.5 h-3.5"></i> <span id="adm-btn-text">Editar ✏️</span>
             </button>
@@ -275,6 +395,7 @@
         let availableYears = ["2025"];
         let currentIndex = 0;
         let searchTerm = "";
+        let isPdfCancelled = false;
         let isAdmin = false;
         let activeTruckSlots = {};
 
@@ -344,6 +465,276 @@
             }
             lucide.createIcons();
         });
+
+        // PONTO 2: DASHBOARD / ESTATÍSTICAS DA FROTA
+        async function openDashboardModal() {
+            document.getElementById('dashboard-modal').classList.remove('hidden');
+            document.getElementById('dash-year-label').innerText = activeYear;
+
+            const totalTrucks = rawFleetDocs.length;
+            const notesTrucks = rawFleetDocs.filter(t => t.notes || t.transfer).length;
+
+            document.getElementById('dash-total-trucks').innerText = totalTrucks;
+            document.getElementById('dash-notes-trucks').innerText = notesTrucks;
+
+            // Calcula contagem por unidade
+            let unitCounts = {};
+            ALL_UNITS.forEach(u => unitCounts[u] = 0);
+
+            rawFleetDocs.forEach(t => {
+                if (t.cycleUnits) {
+                    t.cycleUnits.forEach(u => {
+                        if (u && unitCounts[u] !== undefined) unitCounts[u]++;
+                    });
+                }
+            });
+
+            const breakdownContainer = document.getElementById('dash-units-breakdown');
+            breakdownContainer.innerHTML = ALL_UNITS.map(unit => {
+                const count = unitCounts[unit] || 0;
+                const percent = totalTrucks > 0 ? Math.round((count / (totalTrucks * 3)) * 100) : 0;
+                return `
+                    <div>
+                        <div class="flex justify-between items-center text-[10px] font-black text-slate-700 mb-1">
+                            <span>${unit}</span>
+                            <span>${count} alocações (${percent}%)</span>
+                        </div>
+                        <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                            <div class="bg-[#E30613] h-full" style="width: ${percent}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Progresso aproximado de fotos salvas
+            let totalSlots = totalTrucks * 12;
+            let filledSlots = 0;
+            
+            // Consulta total de imagens
+            const snapshot = await db.collectionGroup("slots").get().catch(() => null);
+            if (snapshot) filledSlots = snapshot.size;
+
+            const photoPercent = totalSlots > 0 ? Math.min(100, Math.round((filledSlots / totalSlots) * 100)) : 0;
+            document.getElementById('dash-photo-progress').innerText = `${photoPercent}%`;
+            lucide.createIcons();
+        }
+
+        function closeDashboardModal() {
+            document.getElementById('dashboard-modal').classList.add('hidden');
+        }
+
+        // PONTO 3: EXPORTAÇÃO EXCEL / CSV
+        function exportFleetToExcel() {
+            if (rawFleetDocs.length === 0) {
+                showToast("Nenhum dado para exportar!", "error");
+                return;
+            }
+
+            let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+            csvContent += "ID Veiculo;Ano;1º Ciclo;2º Ciclo;3º Ciclo;Transferencia;Observacoes\n";
+
+            rawFleetDocs.forEach(t => {
+                const c1 = t.cycleUnits ? (t.cycleUnits[0] || "Inativo") : "";
+                const c2 = t.cycleUnits ? (t.cycleUnits[1] || "Inativo") : "";
+                const c3 = t.cycleUnits ? (t.cycleUnits[2] || "Inativo") : "";
+                const transf = (t.transfer || "").replace(/;/g, ",");
+                const notes = (t.notes || "").replace(/;/g, ",");
+
+                csvContent += `${t.id};${activeYear};${c1};${c2};${c3};${transf};${notes}\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `Relatorio_Frota_CB_${activeYear}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showToast("Planilha Excel (.CSV) baixada!");
+        }
+
+        // PONTO 5: APLICAÇÃO DE MARCA D'ÁGUA COM DATA E UNIDADE
+        function addWatermarkToImage(file, unitName) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+
+                        const maxWidth = 1000;
+                        if (width > maxWidth) {
+                            height = Math.round((height * maxWidth) / width);
+                            width = maxWidth;
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        // Desenha a tarja preta transparente da Marca d'Água no canto inferior
+                        const text = `${unitName} • ${new Date().toLocaleString('pt-BR')}`;
+                        const fontSize = Math.max(12, Math.round(width * 0.025));
+                        ctx.font = `bold ${fontSize}px sans-serif`;
+
+                        const textWidth = ctx.measureText(text).width;
+                        const padding = 12;
+                        const rectWidth = textWidth + (padding * 2);
+                        const rectHeight = fontSize + (padding * 1.5);
+                        const x = width - rectWidth - 15;
+                        const y = height - rectHeight - 15;
+
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+                        ctx.beginPath();
+                        ctx.roundRect(x, y, rectWidth, rectHeight, 8);
+                        ctx.fill();
+
+                        // Texto em branco
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.fillText(text, x + padding, y + fontSize + (padding / 2));
+
+                        resolve(canvas.toDataURL('image/jpeg', 0.8));
+                    };
+                    img.onerror = (err) => reject(err);
+                };
+                reader.onerror = (err) => reject(err);
+            });
+        }
+
+        // FUNÇÕES DO GERADOR DE PDF EM LOTE COM VISUAL MODERNO
+        function selectAllTrucks(check) {
+            const checkboxes = document.querySelectorAll('.pdf-checkbox');
+            checkboxes.forEach(cb => cb.checked = check);
+        }
+
+        function cancelPDFGeneration() {
+            isPdfCancelled = true;
+            document.getElementById('global-progress-container').style.display = 'none';
+            showToast("Geração de PDF cancelada.", "error");
+        }
+
+        async function downloadCombinedPDF() {
+            const checkboxes = document.querySelectorAll('.pdf-checkbox:checked');
+            if (checkboxes.length === 0) {
+                showToast("Selecione pelo menos um veículo!", "error");
+                return;
+            }
+
+            const selectedTruckIds = Array.from(checkboxes).map(cb => cb.value);
+            const targetTrucks = rawFleetDocs.filter(t => selectedTruckIds.includes(t.id))
+                                             .sort((a, b) => parseInt(a.id) - parseInt(b.id));
+
+            isPdfCancelled = false;
+            const progressContainer = document.getElementById('global-progress-container');
+            const progressBar = document.getElementById('global-progress-bar');
+            const progressPercent = document.getElementById('progress-percent-text');
+
+            progressContainer.style.display = 'flex';
+            progressBar.style.width = '0%';
+            progressPercent.innerText = '0%';
+
+            const templateContainer = document.getElementById('pdf-render-template');
+            templateContainer.innerHTML = '';
+
+            try {
+                for (let i = 0; i < targetTrucks.length; i++) {
+                    if (isPdfCancelled) return;
+
+                    const truck = targetTrucks[i];
+
+                    const slotsSnapshot = await db.collection("fleet").doc(truck.docId).collection("slots").get();
+                    let truckImages = {};
+                    slotsSnapshot.forEach(doc => {
+                        truckImages[doc.id] = doc.data().url || doc.data().base64;
+                    });
+
+                    const pageHTML = `
+                        <div class="pdf-page-block p-8 bg-slate-50 font-sans" style="page-break-after: always; width: 1050px; min-height: 700px; box-sizing: border-box;">
+                            <div class="bg-[#E30613] text-white p-4 rounded-2xl shadow-md flex justify-between items-center mb-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="bg-white p-2 rounded-xl text-[#E30613]">
+                                        <i data-lucide="truck" class="w-6 h-6"></i>
+                                    </div>
+                                    <div>
+                                        <h1 class="text-base font-black tracking-widest uppercase">CB DISTRIBUIDORA DE BEBIDAS</h1>
+                                        <p class="text-[10px] text-white/80 font-bold uppercase tracking-wider">Relatório de Vistoria de Imagens • Ano ${activeYear}</p>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-3xl font-black tracking-tighter">VEÍCULO ${truck.id}</span>
+                                    <span class="block text-[10px] font-extrabold text-white/90 uppercase">${activeUnit}</span>
+                                </div>
+                            </div>
+
+                            ${(truck.transfer || truck.notes) ? `
+                                <div class="flex gap-2 mb-4">
+                                    ${truck.transfer ? `<span class="bg-red-600 text-white px-3 py-1 rounded-lg text-xs font-black uppercase">Transferência: ${truck.transfer}</span>` : ''}
+                                    ${truck.notes ? `<span class="bg-slate-900 text-white px-3 py-1 rounded-lg text-xs font-black uppercase">Observações: ${truck.notes}</span>` : ''}
+                                </div>
+                            ` : ''}
+
+                            <div class="grid grid-cols-3 gap-4">
+                                ${[0, 1, 2].map(c => {
+                                    const cycleUnit = truck.cycleUnits ? (truck.cycleUnits[c] || "INATIVO") : activeUnit;
+                                    return `
+                                        <div class="bg-white rounded-3xl border-2 border-slate-200 p-3 shadow-sm flex flex-col">
+                                            <div class="bg-red-50 p-2 rounded-2xl mb-3 flex justify-between items-center border border-red-100">
+                                                <span class="text-xs font-black text-slate-800">${cycleInfo[c].label}</span>
+                                                <span class="text-[9px] font-black text-[#E30613] bg-white px-2 py-0.5 rounded-md shadow-sm border border-red-100 uppercase">${cycleUnit}</span>
+                                            </div>
+                                            <div class="grid grid-cols-2 gap-2 flex-1">
+                                                ${[1, 2, 3, 4].map(s => {
+                                                    const slotKey = `c${c}_s${s}`;
+                                                    const imgBase64 = truckImages[slotKey] || (truck.legacyImages ? truck.legacyImages[slotKey] : "");
+                                                    return `
+                                                        <div class="w-full h-32 bg-slate-100 rounded-2xl border border-slate-200 overflow-hidden flex items-center justify-center p-1">
+                                                            ${imgBase64 ? `<img src="${imgBase64}" class="w-full h-full object-contain rounded-xl" alt="Foto">` : `<span class="text-[9px] font-bold text-slate-300 uppercase">Sem foto</span>`}
+                                                        </div>
+                                                    `;
+                                                }).join('')}
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    `;
+
+                    templateContainer.innerHTML += pageHTML;
+
+                    const percent = Math.round(((i + 1) / targetTrucks.length) * 100);
+                    progressBar.style.width = `${percent}%`;
+                    progressPercent.innerText = `${percent}%`;
+                }
+
+                lucide.createIcons();
+
+                const opt = {
+                    margin: 0,
+                    filename: `Relatorio_Frota_${activeYear}.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2, useCORS: true, logging: false },
+                    jsPDF: { unit: 'pt', format: 'a4', orientation: 'landscape' }
+                };
+
+                await html2pdf().set(opt).from(templateContainer).save();
+                showToast("PDF gerado com sucesso!");
+
+            } catch (err) {
+                console.error("Erro no PDF:", err);
+                showToast("Erro ao gerar arquivo PDF.", "error");
+            } finally {
+                progressContainer.style.display = 'none';
+                templateContainer.innerHTML = '';
+                toggleMenu();
+            }
+        }
 
         // REGISTRO DE AUDITORIA NO FIRESTORE
         async function logAuditAction(truckDocId, actionDescription) {
@@ -601,36 +992,6 @@
             fileInput.click();
         }
 
-        function compressImage(file, maxWidth = 1000, quality = 0.75) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = (e) => {
-                    const img = new Image();
-                    img.src = e.target.result;
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        let width = img.width;
-                        let height = img.height;
-
-                        if (width > maxWidth) {
-                            height = Math.round((height * maxWidth) / width);
-                            width = maxWidth;
-                        }
-
-                        canvas.width = width;
-                        canvas.height = height;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, width, height);
-
-                        resolve(canvas.toDataURL('image/jpeg', quality));
-                    };
-                    img.onerror = (err) => reject(err);
-                };
-                reader.onerror = (err) => reject(err);
-            });
-        }
-
         async function uploadFileToSlot(file, cycleIdx, slotIdx, truckDocId) {
             if (!file) return;
 
@@ -641,19 +1002,20 @@
 
             const container = document.getElementById(`slot-container-${cycleIdx}-${slotIdx}`);
             const originalHTML = container ? container.innerHTML : ""; 
-            if (container) container.innerHTML = `<span class="text-[8px] font-bold text-slate-400 animate-pulse">PROCESSANDO...</span>`;
+            if (container) container.innerHTML = `<span class="text-[8px] font-bold text-slate-400 animate-pulse">APLICANDO MARCA D'ÁGUA...</span>`;
 
             try {
-                const compressedBase64 = await compressImage(file);
+                // PONTO 5: Aplica a marca d'água com a unidade e a data/hora antes de salvar
+                const watermarkedBase64 = await addWatermarkToImage(file, activeUnit);
                 const slotDocId = `c${cycleIdx}_s${slotIdx}`;
                 
                 await db.collection("fleet").doc(truckDocId).collection("slots").doc(slotDocId).set({
-                    base64: compressedBase64,
+                    base64: watermarkedBase64,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
                 await logAuditAction(truckDocId, `Adicionou/Atualizou foto no Ciclo ${cycleIdx + 1}, Foto ${slotIdx}`);
-                showToast("Imagem salva com sucesso!");
+                showToast("Imagem salva com marca d'água!");
             } catch (error) {
                 console.error("Erro no envio:", error);
                 showToast("Erro ao salvar imagem", "error");
@@ -699,6 +1061,7 @@
         function handleImgLoad(img) { img.classList.remove('opacity-0'); img.classList.add('opacity-100'); }
         function handleImgError(img) { img.style.display = 'none'; }
         function openZoom(src) { if (!src || isAdmin) return; document.getElementById('lightbox-img').src = src; document.getElementById('lightbox-modal').style.display = 'flex'; }
+        function toggleMenu() { const menu = document.getElementById('options-menu'); menu.classList.toggle('open'); if (menu.classList.contains('open')) updatePDFList(); }
 
         function toggleComparison() {
             document.body.classList.toggle('comparison-active');
@@ -715,6 +1078,28 @@
                 const hasCycleInUnit = truck.cycleUnits && truck.cycleUnits.includes(activeUnit);
                 return matchesSearch && hasCycleInUnit;
             }).sort((a, b) => parseInt(a.id) - parseInt(b.id));
+        }
+
+        function updatePDFList() {
+            const unit = document.getElementById('pdf-unit-filter').value;
+            const container = document.getElementById('pdf-truck-selection');
+            let list = [];
+            
+            if (unit === "TODAS AS UNIDADES") {
+                list = [...rawFleetDocs];
+            } else {
+                list = rawFleetDocs.filter(t => t.cycleUnits && t.cycleUnits.includes(unit));
+            }
+            
+            list.sort((a, b) => parseInt(a.id) - parseInt(b.id));
+            container.innerHTML = list.map(t => `
+                <label class="flex items-center gap-3 p-2 hover:bg-slate-100 rounded-lg cursor-pointer transition-all">
+                    <input type="checkbox" data-unit="${unit}" value="${t.id}" class="pdf-checkbox w-4 h-4 accent-[#E30613] rounded">
+                    <div class="flex flex-col">
+                        <span class="text-[11px] font-black text-slate-700 tracking-tighter">${t.id}</span>
+                        <span class="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">${unit}</span>
+                    </div>
+                </label>`).join('');
         }
 
         let currentTruckDocId = null;
@@ -848,6 +1233,7 @@
                 if (document.body.classList.contains('comparison-active')) { toggleComparison(); return; }
                 document.getElementById('lightbox-modal').style.display = 'none';
                 closeAuditModal();
+                closeDashboardModal();
             }
             else if (key === 'c') { toggleComparison(); }
             else if (e.key === 'ArrowRight') { document.getElementById('next-btn').click(); }
