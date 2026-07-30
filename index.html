@@ -416,7 +416,7 @@
             lucide.createIcons();
         });
 
-        // FUNÇÕES DO GERADOR DE PDF EM LOTE (CORRIGIDAS)
+        // FUNÇÕES DO GERADOR DE PDF EM LOTE (TOTALMENTE ATUALIZADO)
         function selectAllTrucks(check) {
             const checkboxes = document.querySelectorAll('.pdf-checkbox');
             checkboxes.forEach(cb => cb.checked = check);
@@ -460,60 +460,73 @@
                     const truck = targetTrucks[i];
                     if (i > 0) pdf.addPage();
 
-                    // Cabeçalho PDF
+                    // Cabeçalho da Empresa
                     pdf.setFillColor(227, 6, 19);
-                    pdf.rect(0, 0, pageWidth, 15, 'F');
+                    pdf.rect(0, 0, pageWidth, 18, 'F');
+                    
                     pdf.setTextColor(255, 255, 255);
                     pdf.setFont("helvetica", "bold");
-                    pdf.setFontSize(11);
-                    pdf.text("CB DISTRIBUIDORA DE BEBIDAS - IMAGENS FROTA", 10, 10);
-                    pdf.text(`VEÍCULO: ${truck.id}`, pageWidth - 50, 10);
+                    pdf.setFontSize(12);
+                    pdf.text("CB DISTRIBUIDORA DE BEBIDAS", 10, 11);
+                    pdf.text(`RELATÓRIO DE VISTORIA - ANO ${activeYear}`, pageWidth / 2 - 35, 11);
+                    pdf.text(`VEÍCULO: ${truck.id}`, pageWidth - 45, 11);
 
-                    // Busca fotos da subcoleção no Firestore
+                    // Observações e Transferência
+                    pdf.setTextColor(30, 41, 59);
+                    pdf.setFontSize(8);
+                    pdf.setFont("helvetica", "bold");
+                    let subText = `Unidade: ${activeUnit}`;
+                    if (truck.transfer) subText += ` | Transf: ${truck.transfer}`;
+                    if (truck.notes) subText += ` | Obs: ${truck.notes}`;
+                    pdf.text(subText, 10, 23);
+
+                    // Busca imagens da subcoleção no Firestore
                     const slotsSnapshot = await db.collection("fleet").doc(truck.docId).collection("slots").get();
                     let truckImages = {};
                     slotsSnapshot.forEach(doc => {
                         truckImages[doc.id] = doc.data().url || doc.data().base64;
                     });
 
-                    // Grade de fotos do caminhão
+                    // Grade de 3 Ciclos
                     let xPos = 10;
-                    let yPos = 22;
                     const cardWidth = 88;
-                    const cardHeight = 55;
+                    const cardTop = 27;
 
                     for (let c = 0; c < 3; c++) {
-                        const cycleUnit = truck.cycleUnits ? (truck.cycleUnits[c] || "INATIVO") : "CB NORTE";
-                        pdf.setDrawColor(220, 220, 220);
+                        const cycleUnit = truck.cycleUnits ? (truck.cycleUnits[c] || "INATIVO") : activeUnit;
+                        
+                        pdf.setDrawColor(226, 232, 240);
                         pdf.setFillColor(248, 250, 252);
-                        pdf.roundedRect(xPos, yPos, cardWidth, 160, 3, 3, 'FD');
+                        pdf.roundedRect(xPos, cardTop, cardWidth, 172, 2, 2, 'FD');
 
-                        pdf.setTextColor(30, 41, 59);
+                        pdf.setTextColor(227, 6, 19);
                         pdf.setFontSize(9);
                         pdf.setFont("helvetica", "bold");
-                        pdf.text(`${cycleInfo[c].label} (${cycleUnit})`, xPos + 5, yPos + 8);
+                        pdf.text(`${cycleInfo[c].label} - ${cycleUnit}`, xPos + 4, cardTop + 7);
 
-                        let imgY = yPos + 14;
+                        let imgY = cardTop + 11;
                         for (let s = 1; s <= 4; s++) {
                             const slotKey = `c${c}_s${s}`;
                             const imgBase64 = truckImages[slotKey] || (truck.legacyImages ? truck.legacyImages[slotKey] : null);
 
                             if (imgBase64) {
                                 try {
-                                    pdf.addImage(imgBase64, 'JPEG', xPos + 4, imgY, 80, 32);
+                                    pdf.addImage(imgBase64, 'JPEG', xPos + 4, imgY, 80, 37);
                                 } catch (e) {
-                                    pdf.rect(xPos + 4, imgY, 80, 32);
+                                    pdf.setDrawColor(200, 200, 200);
+                                    pdf.rect(xPos + 4, imgY, 80, 37);
                                 }
                             } else {
-                                pdf.setDrawColor(200, 200, 200);
-                                pdf.rect(xPos + 4, imgY, 80, 32);
+                                pdf.setDrawColor(226, 232, 240);
+                                pdf.setFillColor(255, 255, 255);
+                                pdf.rect(xPos + 4, imgY, 80, 37, 'FD');
                             }
-                            imgY += 35;
+                            imgY += 39;
                         }
                         xPos += cardWidth + 5;
                     }
 
-                    // Atualiza Progresso
+                    // Porcentagem de Progresso
                     const percent = Math.round(((i + 1) / targetTrucks.length) * 100);
                     progressBar.style.width = `${percent}%`;
                     progressPercent.innerText = `${percent}%`;
