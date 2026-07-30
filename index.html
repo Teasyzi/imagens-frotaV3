@@ -124,24 +124,24 @@
         </div>
     </div>
 
-    <!-- MODAL DE DASHBOARD / RESUMO DE INDICADORES (PONTO 2) -->
+    <!-- MODAL DE DASHBOARD SEPARADO POR CICLOS NAS UNIDADES -->
     <div id="dashboard-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl p-6 shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div class="bg-white rounded-3xl p-6 shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
             <div class="flex justify-between items-center border-b pb-4 mb-4">
                 <div class="flex items-center gap-2 text-slate-900">
                     <div class="bg-[#E30613] p-1.5 rounded-xl text-white">
                         <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
                     </div>
                     <div>
-                        <h3 class="font-black text-sm uppercase tracking-wider">Dashboard de Indicadores</h3>
-                        <p class="text-[10px] text-slate-400 font-bold uppercase">Resumo da Frota • <span id="dash-year-label">2025</span></p>
+                        <h3 class="font-black text-sm uppercase tracking-wider">Dashboard de Indicadores por Ciclo</h3>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase">Distribuição da Frota • Ano <span id="dash-year-label">2025</span></p>
                     </div>
                 </div>
                 <button onclick="closeDashboardModal()" class="text-slate-400 hover:text-red-600"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
 
             <div class="flex-1 overflow-y-auto custom-scrollbar space-y-6 pr-1">
-                <!-- CARDS DE ESTATÍSTICA RÁPIDA -->
+                <!-- CARDS DE RESUMO GERAL -->
                 <div class="grid grid-cols-3 gap-3">
                     <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 flex flex-col">
                         <span class="text-[9px] font-black text-slate-400 uppercase">Total de Veículos</span>
@@ -157,12 +157,12 @@
                     </div>
                 </div>
 
-                <!-- DISTRIBUIÇÃO POR UNIDADES -->
-                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <h4 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                        <i data-lucide="map-pin" class="w-3.5 h-3.5 text-[#E30613]"></i> Veículos por Unidade Operacional
+                <!-- SEÇÃO SEPARADA POR CADA UM DOS 3 CICLOS NAS UNIDADES -->
+                <div class="space-y-4">
+                    <h4 class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                        <i data-lucide="map-pin" class="w-3.5 h-3.5 text-[#E30613]"></i> Alocações por Ciclo nas Unidades
                     </h4>
-                    <div id="dash-units-breakdown" class="space-y-2"></div>
+                    <div id="dash-cycles-breakdown" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
                 </div>
             </div>
         </div>
@@ -225,14 +225,10 @@
 
     <aside id="options-menu" class="fixed top-0 right-0 h-full w-80 bg-white shadow-2xl flex flex-col border-l border-slate-200">
         <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-            <h2 class="font-black text-[10px] uppercase tracking-widest text-slate-900">OPÇÕES & EXPORTAÇÃO</h2>
+            <h2 class="font-black text-[10px] uppercase tracking-widest text-slate-900">GERAR PDF EM LOTE</h2>
             <button onclick="toggleMenu()" class="text-slate-400 hover:text-red-600"><i data-lucide="x" class="w-5 h-5"></i></button>
         </div>
         <div class="p-6 flex-1 overflow-y-auto custom-scrollbar space-y-6">
-            <button onclick="exportFleetToExcel()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-wider shadow flex items-center justify-center gap-2">
-                <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Exportar Frota em Excel (.CSV)
-            </button>
-            <hr class="border-slate-100">
             <div>
                 <label class="text-[9px] font-black text-slate-400 uppercase mb-3 block italic">1. Selecionar Unidade para PDF</label>
                 <select id="pdf-unit-filter" onchange="updatePDFList()" class="w-full p-2.5 bg-slate-100 border-none rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-[#E30613]/20">
@@ -281,9 +277,6 @@
         <div class="flex items-center gap-3">
             <button onclick="openDashboardModal()" class="flex items-center gap-1.5 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-2.5 py-1 rounded-md transition-all text-[10px] font-black uppercase" title="Ver estatísticas da frota">
                 <i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i> Dashboard
-            </button>
-            <button onclick="exportFleetToExcel()" class="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 text-white px-2.5 py-1 rounded-md transition-all text-[10px] font-black uppercase" title="Exportar dados para Excel">
-                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> Excel
             </button>
             <button id="btn-adm-auth" onclick="openLoginModal()" class="flex items-center gap-2 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-3 py-1 rounded-md transition-all text-[10px] font-black uppercase">
                 <i data-lucide="lock" class="w-3.5 h-3.5"></i> <span id="adm-btn-text">Editar ✏️</span>
@@ -466,7 +459,7 @@
             lucide.createIcons();
         });
 
-        // PONTO 2: DASHBOARD / ESTATÍSTICAS DA FROTA
+        // DASHBOARD / ESTATÍSTICAS DA FROTA SEPARADO POR CICLOS NAS UNIDADES
         async function openDashboardModal() {
             document.getElementById('dashboard-modal').classList.remove('hidden');
             document.getElementById('dash-year-label').innerText = activeYear;
@@ -477,30 +470,49 @@
             document.getElementById('dash-total-trucks').innerText = totalTrucks;
             document.getElementById('dash-notes-trucks').innerText = notesTrucks;
 
-            // Calcula contagem por unidade
-            let unitCounts = {};
-            ALL_UNITS.forEach(u => unitCounts[u] = 0);
+            // Calcula contagem separada por Ciclo (0, 1, 2) e Unidade
+            let cycleUnitCounts = [
+                { "CB NORTE": 0, "CB SUL": 0, "BARREIRAS": 0, "JUAZEIRO": 0, "OT": 0 },
+                { "CB NORTE": 0, "CB SUL": 0, "BARREIRAS": 0, "JUAZEIRO": 0, "OT": 0 },
+                { "CB NORTE": 0, "CB SUL": 0, "BARREIRAS": 0, "JUAZEIRO": 0, "OT": 0 }
+            ];
 
             rawFleetDocs.forEach(t => {
                 if (t.cycleUnits) {
-                    t.cycleUnits.forEach(u => {
-                        if (u && unitCounts[u] !== undefined) unitCounts[u]++;
+                    t.cycleUnits.forEach((unit, cycleIdx) => {
+                        if (unit && cycleUnitCounts[cycleIdx] && cycleUnitCounts[cycleIdx][unit] !== undefined) {
+                            cycleUnitCounts[cycleIdx][unit]++;
+                        }
                     });
                 }
             });
 
-            const breakdownContainer = document.getElementById('dash-units-breakdown');
-            breakdownContainer.innerHTML = ALL_UNITS.map(unit => {
-                const count = unitCounts[unit] || 0;
-                const percent = totalTrucks > 0 ? Math.round((count / (totalTrucks * 3)) * 100) : 0;
+            // Renderiza 3 colunas de Ciclo contendo o detalhamento por unidade
+            const cyclesBreakdownContainer = document.getElementById('dash-cycles-breakdown');
+            cyclesBreakdownContainer.innerHTML = [0, 1, 2].map(cycleIdx => {
+                const counts = cycleUnitCounts[cycleIdx];
                 return `
-                    <div>
-                        <div class="flex justify-between items-center text-[10px] font-black text-slate-700 mb-1">
-                            <span>${unit}</span>
-                            <span>${count} alocações (${percent}%)</span>
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col gap-3">
+                        <div class="border-b pb-2 flex justify-between items-center">
+                            <span class="text-xs font-black text-slate-800 uppercase tracking-wider">${cycleInfo[cycleIdx].label}</span>
+                            <span class="text-[9px] font-bold text-slate-400 italic">${cycleInfo[cycleIdx].range}</span>
                         </div>
-                        <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                            <div class="bg-[#E30613] h-full" style="width: ${percent}%"></div>
+                        <div class="space-y-2">
+                            ${ALL_UNITS.map(unit => {
+                                const count = counts[unit] || 0;
+                                const percent = totalTrucks > 0 ? Math.round((count / totalTrucks) * 100) : 0;
+                                return `
+                                    <div>
+                                        <div class="flex justify-between items-center text-[9px] font-bold text-slate-600 mb-0.5">
+                                            <span>${unit}</span>
+                                            <span class="font-black text-slate-800">${count} (${percent}%)</span>
+                                        </div>
+                                        <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                                            <div class="bg-[#E30613] h-full" style="width: ${percent}%"></div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
                         </div>
                     </div>
                 `;
@@ -510,7 +522,6 @@
             let totalSlots = totalTrucks * 12;
             let filledSlots = 0;
             
-            // Consulta total de imagens
             const snapshot = await db.collectionGroup("slots").get().catch(() => null);
             if (snapshot) filledSlots = snapshot.size;
 
@@ -523,38 +534,7 @@
             document.getElementById('dashboard-modal').classList.add('hidden');
         }
 
-        // PONTO 3: EXPORTAÇÃO EXCEL / CSV
-        function exportFleetToExcel() {
-            if (rawFleetDocs.length === 0) {
-                showToast("Nenhum dado para exportar!", "error");
-                return;
-            }
-
-            let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-            csvContent += "ID Veiculo;Ano;1º Ciclo;2º Ciclo;3º Ciclo;Transferencia;Observacoes\n";
-
-            rawFleetDocs.forEach(t => {
-                const c1 = t.cycleUnits ? (t.cycleUnits[0] || "Inativo") : "";
-                const c2 = t.cycleUnits ? (t.cycleUnits[1] || "Inativo") : "";
-                const c3 = t.cycleUnits ? (t.cycleUnits[2] || "Inativo") : "";
-                const transf = (t.transfer || "").replace(/;/g, ",");
-                const notes = (t.notes || "").replace(/;/g, ",");
-
-                csvContent += `${t.id};${activeYear};${c1};${c2};${c3};${transf};${notes}\n`;
-            });
-
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `Relatorio_Frota_CB_${activeYear}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-            showToast("Planilha Excel (.CSV) baixada!");
-        }
-
-        // PONTO 5: APLICAÇÃO DE MARCA D'ÁGUA COM DATA E UNIDADE
+        // APLICAÇÃO DE MARCA D'ÁGUA COM DATA E UNIDADE
         function addWatermarkToImage(file, unitName) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -578,7 +558,6 @@
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, width, height);
 
-                        // Desenha a tarja preta transparente da Marca d'Água no canto inferior
                         const text = `${unitName} • ${new Date().toLocaleString('pt-BR')}`;
                         const fontSize = Math.max(12, Math.round(width * 0.025));
                         ctx.font = `bold ${fontSize}px sans-serif`;
@@ -595,7 +574,6 @@
                         ctx.roundRect(x, y, rectWidth, rectHeight, 8);
                         ctx.fill();
 
-                        // Texto em branco
                         ctx.fillStyle = '#FFFFFF';
                         ctx.fillText(text, x + padding, y + fontSize + (padding / 2));
 
@@ -1005,7 +983,6 @@
             if (container) container.innerHTML = `<span class="text-[8px] font-bold text-slate-400 animate-pulse">APLICANDO MARCA D'ÁGUA...</span>`;
 
             try {
-                // PONTO 5: Aplica a marca d'água com a unidade e a data/hora antes de salvar
                 const watermarkedBase64 = await addWatermarkToImage(file, activeUnit);
                 const slotDocId = `c${cycleIdx}_s${slotIdx}`;
                 
