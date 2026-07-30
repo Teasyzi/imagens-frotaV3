@@ -75,7 +75,7 @@
 
 <body class="bg-[#F8FAFC] text-slate-900 h-screen flex flex-col">
 
-    <!-- TELA DE LOGIN COM MOLDURA BRANCA EXPANDIDA PARA A LOGO (1280x720) -->
+    <!-- TELA DE LOGIN COM CAIXA QUADRADA PARA A LOGO -->
     <div id="app-login-screen" class="fixed inset-0 z-[500] login-bg-modern flex items-center justify-center p-4">
         
         <!-- Luzes decorativas de fundo -->
@@ -84,20 +84,20 @@
 
         <div class="w-full max-w-md login-glass-card rounded-3xl p-8 flex flex-col items-center relative z-10 transition-all">
             
-            <!-- CONTAINER DA LOGO EM BRANCO E AMPLO (PROPORÇÃO 16:9) -->
-            <div class="flex flex-col items-center mb-6 w-full">
-                <div class="w-full h-24 rounded-2xl bg-white p-3 shadow-2xl flex items-center justify-center mb-3 relative overflow-hidden border border-slate-200">
+            <!-- CONTAINER QUADRADO BRANCO PARA A LOGO -->
+            <div class="flex flex-col items-center mb-6">
+                <div class="w-28 h-28 rounded-2xl bg-white p-3 shadow-2xl flex items-center justify-center mb-3 relative overflow-hidden border border-slate-200">
                     
-                    <!-- Imagem da logo expandida -->
+                    <!-- Imagem da logo dentro do quadrado -->
                     <img id="login-company-logo" 
                          src="./logo.png" 
                          onerror="if (this.src.indexOf('logo.png') !== -1) { this.src='./logo.PNG'; } else { this.style.display='none'; document.getElementById('fallback-logo-icon').classList.remove('hidden'); }" 
-                         class="w-full h-full object-contain relative z-10" 
+                         class="max-w-full max-h-full object-contain relative z-10" 
                          alt="Logo CB Distribuidora">
                     
-                    <div id="fallback-logo-icon" class="hidden relative z-10 text-[#E30613] flex items-center gap-2 font-black text-xs">
+                    <div id="fallback-logo-icon" class="hidden relative z-10 text-[#E30613] flex flex-col items-center gap-1 font-black text-[9px]">
                         <i data-lucide="truck" class="w-8 h-8"></i>
-                        <span>CB DISTRIBUIDORA</span>
+                        <span>COSTA BRASIL</span>
                     </div>
                 </div>
 
@@ -111,7 +111,7 @@
                     <label class="text-[10px] font-black text-slate-300 uppercase block mb-1.5 ml-1">E-mail Corporativo</label>
                     <div class="relative">
                         <i data-lucide="mail" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
-                        <input type="email" id="main-login-email" placeholder="usuario@cb.com.br" class="w-full pl-10 pr-4 py-3 bg-slate-950/70 border border-slate-700/60 rounded-xl text-xs font-bold text-white placeholder:text-slate-500 outline-none focus:border-[#E30613] focus:ring-2 focus:ring-[#E30613]/20 transition-all">
+                        <input type="email" id="main-login-email" placeholder="adm@costabrasil.com.br" class="w-full pl-10 pr-4 py-3 bg-slate-950/70 border border-slate-700/60 rounded-xl text-xs font-bold text-white placeholder:text-slate-500 outline-none focus:border-[#E30613] focus:ring-2 focus:ring-[#E30613]/20 transition-all">
                     </div>
                 </div>
 
@@ -158,8 +158,8 @@
     <!-- MODAL DE ELEVAÇÃO PARA MODO EDITAR (ADM) -->
     <div id="login-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] hidden flex items-center justify-center">
         <div class="bg-white p-6 rounded-2xl shadow-2xl w-80 flex flex-col gap-4">
-            <h3 class="font-black text-xs uppercase tracking-wider text-slate-900">Modo Edição</h3>
-            <p class="text-[10px] text-slate-500">Confirme a senha de administrador:</p>
+            <h3 class="font-black text-xs uppercase tracking-wider text-slate-900">Modo Edição (ADM)</h3>
+            <p class="text-[10px] text-slate-500">Confirme a senha de administrador para liberar privilégios de alteração:</p>
             <input type="password" id="login-password" placeholder="Senha do Administrador" class="w-full p-2 border rounded-lg text-xs outline-none focus:border-[#E30613]">
             <div class="flex gap-2 mt-2">
                 <button onclick="closeLoginModal()" class="w-1/2 bg-slate-200 text-slate-700 py-2 rounded-xl font-bold text-[10px] uppercase">Cancelar</button>
@@ -219,7 +219,7 @@
         </div>
         <div class="p-6 bg-slate-50 border-t border-slate-100">
             <button id="btn-generate-pdf" onclick="downloadCombinedPDF()" class="w-full bg-[#E30613] text-white py-3.5 rounded-xl font-black text-[9px] uppercase tracking-[0.2em] shadow-lg hover:bg-red-700 transition-all flex items-center justify-center gap-2">
-                <i data-lucide="layers" class="w-4 h-4"></i> Gerar PDF
+                <i data-lucide="layers" class="w-4 h-4"></i> Gerar PDF Lote
             </button>
         </div>
     </aside>
