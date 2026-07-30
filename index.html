@@ -14,6 +14,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     
+    <!-- Biblioteca HTML2PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <!-- SDKs do Firebase (Versão Compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -49,6 +53,7 @@
         @keyframes toastIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .toast-animate { animation: toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
+        /* ESTILOS DA TELA DE LOGIN */
         .login-bg-modern {
             background: radial-gradient(circle at 50% 10%, #1e1112 0%, #0b0f17 60%, #030712 100%);
         }
@@ -72,6 +77,7 @@
 
 <body class="bg-[#F8FAFC] text-slate-900 h-screen flex flex-col">
 
+    <!-- TELA DE LOGIN -->
     <div id="app-login-screen" class="fixed inset-0 z-[500] login-bg-modern flex items-center justify-center p-4">
         <div class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#E30613]/20 blur-[120px] rounded-full pointer-events-none"></div>
         <div class="w-full max-w-md login-glass-card rounded-3xl p-8 flex flex-col items-center relative z-10 transition-all">
@@ -118,6 +124,33 @@
         </div>
     </div>
 
+    <!-- MODAL DE GERENCIAMENTO DE EDITORES DENTRO DO SITE -->
+    <div id="editors-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 shadow-2xl w-full max-w-md flex flex-col">
+            <div class="flex justify-between items-center border-b pb-3 mb-4">
+                <div class="flex items-center gap-2 text-slate-900">
+                    <i data-lucide="user-check" class="w-5 h-5 text-[#E30613]"></i>
+                    <h3 class="font-black text-xs uppercase tracking-wider">Gerenciar Editores Autorizados</h3>
+                </div>
+                <button onclick="closeEditorsModal()" class="text-slate-400 hover:text-red-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+
+            <div class="space-y-3 mb-4">
+                <label class="text-[10px] font-black text-slate-400 uppercase block">Adicionar Novo E-mail de Editor</label>
+                <div class="flex gap-2">
+                    <input type="email" id="new-editor-email" placeholder="usuario@costabrasil.com.br" class="flex-1 p-2.5 bg-slate-100 border-none rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-[#E30613]/20">
+                    <button onclick="addEditorEmail()" class="bg-[#E30613] hover:bg-red-700 text-white font-black text-xs px-4 py-2.5 rounded-xl uppercase tracking-wider shadow">Adicionar</button>
+                </div>
+            </div>
+
+            <div class="border-t pt-3">
+                <span class="text-[10px] font-black text-slate-400 uppercase block mb-2">E-mails Autorizados Atuais:</span>
+                <div id="editors-list-container" class="max-h-48 overflow-y-auto custom-scrollbar space-y-1.5 pr-1"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE DASHBOARD SEPARADO POR CICLOS NAS UNIDADES -->
     <div id="dashboard-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
             <div class="flex justify-between items-center border-b pb-4 mb-4">
@@ -151,7 +184,7 @@
 
                 <div class="space-y-4">
                     <h4 class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                        <i data-lucide="map-pin" class="w-3.5 h-3.5 text-[#E30613]"></i> Progresso por ciclos
+                        <i data-lucide="map-pin" class="w-3.5 h-3.5 text-[#E30613]"></i> Progresso por ciclo
                     </h4>
                     <div id="dash-cycles-breakdown" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
                 </div>
@@ -159,9 +192,11 @@
         </div>
     </div>
 
+    <div id="pdf-render-template" style="position: absolute; left: -9999px; top: -9999px; width: 1100px;"></div>
 
     <div id="toast-container" class="fixed top-14 right-6 z-[300] flex flex-col gap-2 pointer-events-none"></div>
 
+    <!-- MODAL DE HISTÓRICO DE AUDITORIA -->
     <div id="audit-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] hidden flex items-center justify-center">
         <div class="bg-white p-6 rounded-2xl shadow-2xl w-[450px] max-h-[80vh] flex flex-col">
             <div class="flex justify-between items-center border-b pb-3 mb-3">
@@ -177,18 +212,7 @@
         </div>
     </div>
 
-    <div id="login-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] hidden flex items-center justify-center">
-        <div class="bg-white p-6 rounded-2xl shadow-2xl w-80 flex flex-col gap-4">
-            <h3 class="font-black text-xs uppercase tracking-wider text-slate-900">Modo Edição (ADM)</h3>
-            <p class="text-[10px] text-slate-500">Confirme a senha de administrador para liberar privilégios de alteração:</p>
-            <input type="password" id="login-password" placeholder="Senha do Administrador" class="w-full p-2 border rounded-lg text-xs outline-none focus:border-[#E30613]">
-            <div class="flex gap-2 mt-2">
-                <button onclick="closeLoginModal()" class="w-1/2 bg-slate-200 text-slate-700 py-2 rounded-xl font-bold text-[10px] uppercase">Cancelar</button>
-                <button onclick="handleElevateToAdmin()" class="w-1/2 bg-[#E30613] text-white py-2 rounded-xl font-bold text-[10px] uppercase shadow-md hover:bg-red-700">Ativar</button>
-            </div>
-        </div>
-    </div>
-
+    <!-- BARRA DE PROGRESSO DO PDF -->
     <div id="global-progress-container">
         <div id="global-progress-text" class="flex items-center gap-2">
             <i data-lucide="refresh-cw" class="w-3 h-3 text-[#E30613] animate-spin"></i>
@@ -264,9 +288,17 @@
             <button onclick="openDashboardModal()" class="flex items-center gap-1.5 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-2.5 py-1 rounded-md transition-all text-[10px] font-black uppercase" title="Ver estatísticas da frota">
                 <i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i> Dashboard
             </button>
-            <button id="btn-adm-auth" onclick="openLoginModal()" class="flex items-center gap-2 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-3 py-1 rounded-md transition-all text-[10px] font-black uppercase">
+            
+            <!-- BOTÃO EDITAR EXIBIDO APENAS PARA EDITORES AUTORIZADOS -->
+            <button id="btn-adm-auth" onclick="toggleEditMode()" class="hidden flex items-center gap-2 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-3 py-1 rounded-md transition-all text-[10px] font-black uppercase">
                 <i data-lucide="lock" class="w-3.5 h-3.5"></i> <span id="adm-btn-text">Editar ✏️</span>
             </button>
+
+            <!-- BOTÃO PARA GERENCIAR EDITORES DENTRO DO SITE -->
+            <button id="btn-manage-editors" onclick="openEditorsModal()" class="hidden flex items-center gap-1 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-2.5 py-1 rounded-md transition-all text-[10px] font-black uppercase" title="Gerenciar Editores">
+                <i data-lucide="user-check" class="w-3.5 h-3.5"></i>
+            </button>
+
             <button onclick="handleSignOut()" class="flex items-center gap-1 bg-black/30 hover:bg-black/50 text-white/80 hover:text-white px-2.5 py-1 rounded-md transition-all text-[10px] font-black uppercase" title="Sair do aplicativo">
                 <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Sair
             </button>
@@ -362,6 +394,10 @@
 
         const ALL_UNITS = ["CB NORTE", "CB SUL", "BARREIRAS", "JUAZEIRO", "OT"];
 
+        // E-MAIL MESTRE INICIAL (SEMPRE TERÁ ACESSO A ADICIONAR NOVOS EDITORES)
+        const MASTER_SUPER_ADM = "adm@costabrasil.com.br";
+        let authorizedEditorsList = [MASTER_SUPER_ADM];
+
         const cycleInfo = [
             { label: "1º CICLO", range: "Abril - Junho" },
             { label: "2º CICLO", range: "Julho - Setembro" },
@@ -432,19 +468,129 @@
             showToast("Você saiu da aplicação.");
         }
 
+        // CARREGA A LISTA DE EDITORES DO FIRESTORE EM TEMPO REAL
+        function listenToAuthorizedEditors() {
+            db.collection("settings").doc("editors").onSnapshot(doc => {
+                if (doc.exists && doc.data().list) {
+                    authorizedEditorsList = doc.data().list;
+                } else {
+                    db.collection("settings").doc("editors").set({ list: [MASTER_SUPER_ADM] });
+                    authorizedEditorsList = [MASTER_SUPER_ADM];
+                }
+                checkUserPermissions();
+            });
+        }
+
+        function checkUserPermissions() {
+            const user = auth.currentUser;
+            const btnAdmAuth = document.getElementById('btn-adm-auth');
+            const btnManageEditors = document.getElementById('btn-manage-editors');
+
+            if (user) {
+                const userEmail = user.email ? user.email.toLowerCase() : "";
+                const isAuthorized = authorizedEditorsList.some(email => email.toLowerCase() === userEmail);
+
+                if (isAuthorized) {
+                    btnAdmAuth.classList.remove('hidden');
+                    btnManageEditors.classList.remove('hidden');
+                } else {
+                    btnAdmAuth.classList.add('hidden');
+                    btnManageEditors.classList.add('hidden');
+                    isAdmin = false;
+                }
+            } else {
+                btnAdmAuth.classList.add('hidden');
+                btnManageEditors.classList.add('hidden');
+                isAdmin = false;
+            }
+            lucide.createIcons();
+        }
+
         auth.onAuthStateChanged(user => {
             const loginScreen = document.getElementById('app-login-screen');
             if (user) {
                 loginScreen.classList.add('hidden');
+                listenToAuthorizedEditors();
                 loadYearsList();
             } else {
                 loginScreen.classList.remove('hidden');
+                isAdmin = false;
                 if (unsubscribeFleet) unsubscribeFleet();
                 if (unsubscribeSlots) unsubscribeSlots();
             }
             lucide.createIcons();
         });
 
+        // GERENCIAMENTO DE EDITORES DENTRO DO SITE (PONTO SOLICITADO)
+        function openEditorsModal() {
+            document.getElementById('editors-modal').classList.remove('hidden');
+            renderEditorsList();
+        }
+
+        function closeEditorsModal() {
+            document.getElementById('editors-modal').classList.add('hidden');
+        }
+
+        function renderEditorsList() {
+            const container = document.getElementById('editors-list-container');
+            container.innerHTML = authorizedEditorsList.map(email => `
+                <div class="flex justify-between items-center p-2 bg-slate-50 rounded-xl border border-slate-200 text-xs font-bold text-slate-800">
+                    <span>${email}</span>
+                    ${email.toLowerCase() !== MASTER_SUPER_ADM.toLowerCase() ? `
+                        <button onclick="removeEditorEmail('${email}')" class="text-red-500 hover:text-red-700 p-1" title="Remover permissão"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                    ` : '<span class="text-[8px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded font-black">SUPER ADM</span>'}
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        async function addEditorEmail() {
+            const emailInput = document.getElementById('new-editor-email').value.trim().toLowerCase();
+            if (!emailInput || !emailInput.includes('@')) {
+                showToast("Digite um e-mail válido!", "error");
+                return;
+            }
+
+            if (authorizedEditorsList.includes(emailInput)) {
+                showToast("Este e-mail já é um editor!", "error");
+                return;
+            }
+
+            authorizedEditorsList.push(emailInput);
+            await db.collection("settings").doc("editors").set({ list: authorizedEditorsList });
+            document.getElementById('new-editor-email').value = "";
+            showToast("Novo editor cadastrado!");
+            renderEditorsList();
+        }
+
+        async function removeEditorEmail(emailToRemove) {
+            if (emailToRemove.toLowerCase() === MASTER_SUPER_ADM.toLowerCase()) return;
+            authorizedEditorsList = authorizedEditorsList.filter(e => e.toLowerCase() !== emailToRemove.toLowerCase());
+            await db.collection("settings").doc("editors").set({ list: authorizedEditorsList });
+            showToast("Editor removido!");
+            renderEditorsList();
+        }
+
+        function toggleEditMode() {
+            isAdmin = !isAdmin;
+
+            if (isAdmin) {
+                document.getElementById('adm-btn-text').innerText = "Modo Leitura";
+                document.getElementById('adm-fields-container').classList.remove('hidden');
+                document.getElementById('btn-add-truck').classList.remove('hidden');
+                document.getElementById('btn-add-year').classList.remove('hidden');
+                showToast("Modo de edição ativado!");
+            } else {
+                document.getElementById('adm-btn-text').innerText = "Editar ✏️";
+                document.getElementById('adm-fields-container').classList.add('hidden');
+                document.getElementById('btn-add-truck').classList.add('hidden');
+                document.getElementById('btn-add-year').classList.add('hidden');
+                showToast("Modo edição desativado.");
+            }
+            render();
+        }
+
+        // DASHBOARD ATUALIZADO: CÁLCULO INDIVIDUAL POR CICLO COM CRITÉRIO DE 1 FOTO
         async function openDashboardModal() {
             document.getElementById('dashboard-modal').classList.remove('hidden');
             document.getElementById('dash-year-label').innerText = activeYear;
@@ -521,8 +667,8 @@
                                 <span class="text-xs font-black text-slate-800 uppercase tracking-wider">${cycleInfo[cycleIdx].label}</span>
                                 <span class="text-[9px] font-bold text-slate-400 italic block">${cycleInfo[cycleIdx].range}</span>
                             </div>
-                            <span class="text-xs font-black ${cyclePercent === 100 ? 'text-emerald-600 bg-emerald-50' : 'text-[#E30613] bg-red-50'} px-2 py-1 rounded-lg border border-slate-200">
-                                ${cyclePercent}% Progesso
+                            <span class="text-xs font-black whitespace-nowrap ${cyclePercent === 100 ? 'text-emerald-600 bg-emerald-50' : 'text-[#E30613] bg-red-50'} px-2 py-1 rounded-lg border border-slate-200">
+                                ${cyclePercent}% Cobertura
                             </span>
                         </div>
                         
@@ -559,6 +705,7 @@
             document.getElementById('dashboard-modal').classList.add('hidden');
         }
 
+        // APLICAÇÃO DE MARCA D'ÁGUA COM DATA E UNIDADE
         function addWatermarkToImage(file, unitName) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -896,32 +1043,6 @@
             loadDataFromFirebase();
         }
 
-        function openLoginModal() {
-            if (isAdmin) { 
-                isAdmin = false;
-                document.getElementById('adm-btn-text').innerText = "Editar ✏️";
-                document.getElementById('adm-fields-container').classList.add('hidden');
-                document.getElementById('btn-add-truck').classList.add('hidden');
-                document.getElementById('btn-add-year').classList.add('hidden');
-                showToast("Modo edição desativado.");
-                render();
-            } else { 
-                document.getElementById('login-modal').classList.remove('hidden'); 
-            }
-        }
-        function closeLoginModal() { document.getElementById('login-modal').classList.add('hidden'); }
-        
-        async function handleElevateToAdmin() {
-            isAdmin = true;
-            document.getElementById('adm-btn-text').innerText = "Modo Leitura";
-            document.getElementById('adm-fields-container').classList.remove('hidden');
-            document.getElementById('btn-add-truck').classList.remove('hidden');
-            document.getElementById('btn-add-year').classList.remove('hidden');
-            closeLoginModal();
-            showToast("Modo de edição ativado!");
-            render();
-        }
-
         async function addNewTruck() {
             const id = prompt("Digite o número do novo veículo:");
             if (!id) return;
@@ -1235,6 +1356,7 @@
                 document.getElementById('lightbox-modal').style.display = 'none';
                 closeAuditModal();
                 closeDashboardModal();
+                closeEditorsModal();
             }
             else if (key === 'c') { toggleComparison(); }
             else if (e.key === 'ArrowRight') { document.getElementById('next-btn').click(); }
