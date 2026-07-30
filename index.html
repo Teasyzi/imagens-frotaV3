@@ -77,6 +77,9 @@
 
 <body class="bg-[#F8FAFC] text-slate-900 h-screen flex flex-col">
 
+    <!-- INPUT OCULTO PARA SELEÇÃO DE PASTA INTEIRA NO NAVEGADOR -->
+    <input type="file" id="folder-batch-input" webkitdirectory directory multiple class="hidden" onchange="handleFolderBatchUpload(this)">
+
     <!-- TELA DE LOGIN -->
     <div id="app-login-screen" class="fixed inset-0 z-[500] login-bg-modern flex items-center justify-center p-4">
         <div class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#E30613]/20 blur-[120px] rounded-full pointer-events-none"></div>
@@ -150,7 +153,7 @@
         </div>
     </div>
 
-    <!-- MODAL DE DASHBOARD SEPARADO POR CICLOS NAS UNIDADES (EXPANDIDO PARA max-w-4xl) -->
+    <!-- MODAL DE DASHBOARD SEPARADO POR CICLOS NAS UNIDADES -->
     <div id="dashboard-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
             <div class="flex justify-between items-center border-b pb-4 mb-4">
@@ -212,11 +215,11 @@
         </div>
     </div>
 
-    <!-- BARRA DE PROGRESSO DO PDF -->
+    <!-- BARRA DE PROGRESSO GLOBAL (PDF OU IMPORTAÇÃO EM LOTE) -->
     <div id="global-progress-container">
         <div id="global-progress-text" class="flex items-center gap-2">
             <i data-lucide="refresh-cw" class="w-3 h-3 text-[#E30613] animate-spin"></i>
-            <span>GERANDO PDF PROFISSIONAL...</span>
+            <span id="progress-action-title">PROCESSANDO...</span>
         </div>
         <div id="progress-track">
             <div id="global-progress-bar"></div>
@@ -289,6 +292,11 @@
                 <i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i> Dashboard
             </button>
             
+            <!-- BOTÃO PARA IMPORTAR PASTA EM LOTE (EXIBIDO APENAS NO MODO EDIÇÃO) -->
+            <button id="btn-batch-import" onclick="triggerFolderSelect()" class="hidden flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-2.5 py-1 rounded-md transition-all text-[10px] font-black uppercase" title="Importar Pasta de Imagens em Lote">
+                <i data-lucide="folder-input" class="w-3.5 h-3.5 text-blue-400"></i> Importar Pasta 📁
+            </button>
+
             <!-- BOTÃO EDITAR EXIBIDO APENAS PARA EDITORES AUTORIZADOS -->
             <button id="btn-adm-auth" onclick="toggleEditMode()" class="hidden flex items-center gap-2 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-3 py-1 rounded-md transition-all text-[10px] font-black uppercase">
                 <i data-lucide="lock" class="w-3.5 h-3.5"></i> <span id="adm-btn-text">Editar ✏️</span>
@@ -579,15 +587,125 @@
                 document.getElementById('adm-fields-container').classList.remove('hidden');
                 document.getElementById('btn-add-truck').classList.remove('hidden');
                 document.getElementById('btn-add-year').classList.remove('hidden');
+                document.getElementById('btn-batch-import').classList.remove('hidden');
                 showToast("Modo de edição ativado!");
             } else {
                 document.getElementById('adm-btn-text').innerText = "Editar ✏️";
                 document.getElementById('adm-fields-container').classList.add('hidden');
                 document.getElementById('btn-add-truck').classList.add('hidden');
                 document.getElementById('btn-add-year').classList.add('hidden');
+                document.getElementById('btn-batch-import').classList.add('hidden');
                 showToast("Modo edição desativado.");
             }
             render();
+        }
+
+        // IMPORTAÇÃO EM LOTE DIRETO DA PASTA DO NAVEGADOR
+        function triggerFolderSelect() {
+            if (!isAdmin) return;
+            const input = document.getElementById('folder-batch-input');
+            input.value = '';
+            input.click();
+        }
+
+        const MAPA_CICLOS_PASTA = {
+            '1º CICLO': 0, '1 CICLO': 0, 'CICLO 1': 0, 'CICLO1': 0,
+            '2º CICLO': 1, '2 CICLO': 1, 'CICLO 2': 1, 'CICLO2': 1,
+            '3º CICLO': 2, '3 CICLO': 2, 'CICLO 3': 2, 'CICLO3': 2
+        };
+
+        async function handleFolderBatchUpload(input) {
+            const files = Array.from(input.files || []);
+            if (files.length === 0) return;
+
+            const progressContainer = document.getElementById('global-progress-container');
+            const progressBar = document.getElementById('global-progress-bar');
+            const progressPercent = document.getElementById('progress-percent-text');
+            const actionTitle = document.getElementById('progress-action-title');
+
+            actionTitle.innerText = `IMPORTANDO FOTOS DO ANO ${activeYear}...`;
+            progressContainer.style.display = 'flex';
+            progressBar.style.width = '0%';
+            progressPercent.innerText = '0%';
+
+            isPdfCancelled = false;
+            let processedCount = 0;
+
+            // Filtra apenas arquivos de imagem
+            const imageFiles = files.filter(f => f.type.startsWith('image/'));
+
+            for (let i = 0; i < imageFiles.length; i++) {
+                if (isPdfCancelled) break;
+
+                const file = imageFiles[i];
+                // file.webkitRelativePath ex: "minhas-fotos-2025/1º CICLO/CB NORTE/101/slot1.jpg"
+                const pathParts = file.webkitRelativePath.split('/');
+
+                if (pathParts.length < 4) continue; // Precisa ter Ciclo, Unidade, Veículo e Foto
+
+                let cicloIdx = -1;
+                let unidadeNome = "";
+                let truckId = "";
+                let slotNum = -1;
+
+                // Tenta mapear as pastas pelo caminho
+                for (const part of pathParts) {
+                    const upperPart = part.toUpperCase().trim();
+                    if (MAPA_CICLOS_PASTA[upperPart] !== undefined) cicloIdx = MAPA_CICLOS_PASTA[upperPart];
+                    if (ALL_UNITS.includes(upperPart)) unidadeNome = upperPart;
+                    if (!isNaN(part) && part.trim() !== "") truckId = part.trim();
+
+                    const matchSlot = part.toLowerCase().match(/slot\s*([1-4])/);
+                    if (matchSlot) slotNum = matchSlot[1];
+                }
+
+                if (cicloIdx !== -1 && unidadeNome && truckId && slotNum !== -1) {
+                    const docId = `${activeYear}_${truckId}`;
+                    const truckRef = db.collection('fleet').doc(docId);
+                    const truckDoc = await truckRef.get();
+
+                    if (!truckDoc.exists) {
+                        let initialCycleUnits = [null, null, null];
+                        initialCycleUnits[cicloIdx] = unidadeNome;
+                        await truckRef.set({
+                            year: activeYear,
+                            cycleUnits: initialCycleUnits,
+                            active: [true, true, true],
+                            transfer: '',
+                            notes: ''
+                        });
+                    } else {
+                        let cycleUnits = truckDoc.data().cycleUnits || [null, null, null];
+                        cycleUnits[cicloIdx] = unidadeNome;
+                        await truckRef.update({ cycleUnits: cycleUnits });
+                    }
+
+                    // Comprime e envia a foto diretamente (marca d'água só se for >= 2026)
+                    let finalBase64 = "";
+                    if (parseInt(activeYear) >= 2026) {
+                        finalBase64 = await addWatermarkToImage(file, unidadeNome);
+                    } else {
+                        finalBase64 = await compressImage(file);
+                    }
+
+                    const slotDocId = `c${cicloIdx}_s${slotNum}`;
+                    await truckRef.collection('slots').doc(slotDocId).set({
+                        base64: finalBase64,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    processedCount++;
+                }
+
+                const percent = Math.round(((i + 1) / imageFiles.length) * 100);
+                progressBar.style.width = `${percent}%`;
+                progressPercent.innerText = `${percent}%`;
+            }
+
+            progressContainer.style.display = 'none';
+            if (!isPdfCancelled) {
+                showToast(`Importação concluída! ${processedCount} fotos atualizadas para ${activeYear}.`);
+            }
         }
 
         // DASHBOARD ATUALIZADO: CÁLCULO INDIVIDUAL POR CICLO COM CRITÉRIO DE 1 FOTO
@@ -795,7 +913,7 @@
         function cancelPDFGeneration() {
             isPdfCancelled = true;
             document.getElementById('global-progress-container').style.display = 'none';
-            showToast("Geração de PDF cancelada.", "error");
+            showToast("Operação cancelada.", "error");
         }
 
         async function downloadCombinedPDF() {
@@ -813,7 +931,9 @@
             const progressContainer = document.getElementById('global-progress-container');
             const progressBar = document.getElementById('global-progress-bar');
             const progressPercent = document.getElementById('progress-percent-text');
+            const actionTitle = document.getElementById('progress-action-title');
 
+            actionTitle.innerText = "GERANDO PDF PROFISSIONAL...";
             progressContainer.style.display = 'flex';
             progressBar.style.width = '0%';
             progressPercent.innerText = '0%';
@@ -1226,7 +1346,7 @@
 
         function handleImgLoad(img) { img.classList.remove('opacity-0'); img.classList.add('opacity-100'); }
         function handleImgError(img) { img.style.display = 'none'; }
-        function openZoom(src) { if (!src || isAdmin) return; document.getElementById('lightbox-img').src = src; document.getElementById('lightbox-modal').style.display = 'flex'; }
+        function openZoom(src) { if (!src || isAdmin) return; document.getElementById('lightbox-modal').style.display = 'flex'; document.getElementById('lightbox-img').src = src; }
         function toggleMenu() { const menu = document.getElementById('options-menu'); menu.classList.toggle('open'); if (menu.classList.contains('open')) updatePDFList(); }
 
         function toggleComparison() {
