@@ -51,12 +51,12 @@
         @keyframes toastIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .toast-animate { animation: toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
-        /* ESTILOS EXCLUSIVOS DA TELA DE LOGIN REDESENHADA */
+        /* ESTILOS DA TELA DE LOGIN */
         .login-bg-modern {
             background: radial-gradient(circle at 50% 10%, #1e1112 0%, #0b0f17 60%, #030712 100%);
         }
         .login-glass-card {
-            background: rgba(15, 23, 42, 0.75);
+            background: rgba(15, 23, 42, 0.85);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.08);
@@ -75,7 +75,7 @@
 
 <body class="bg-[#F8FAFC] text-slate-900 h-screen flex flex-col">
 
-    <!-- TELA DE LOGIN REDESENHADA E MODERNA -->
+    <!-- TELA DE LOGIN COM MOLDURA BRANCA EXPANDIDA PARA A LOGO (1280x720) -->
     <div id="app-login-screen" class="fixed inset-0 z-[500] login-bg-modern flex items-center justify-center p-4">
         
         <!-- Luzes decorativas de fundo -->
@@ -84,25 +84,25 @@
 
         <div class="w-full max-w-md login-glass-card rounded-3xl p-8 flex flex-col items-center relative z-10 transition-all">
             
-            <!-- BADGE DA LOGO DA EMPRESA -->
-            <div class="flex flex-col items-center mb-6">
-                <div class="w-24 h-24 rounded-2xl bg-slate-900/90 border border-slate-700/60 p-3.5 shadow-2xl flex items-center justify-center mb-3 relative group">
-                    <div class="absolute inset-0 bg-[#E30613]/10 rounded-2xl blur group-hover:bg-[#E30613]/20 transition-all"></div>
+            <!-- CONTAINER DA LOGO EM BRANCO E AMPLO (PROPORÇÃO 16:9) -->
+            <div class="flex flex-col items-center mb-6 w-full">
+                <div class="w-full h-24 rounded-2xl bg-white p-3 shadow-2xl flex items-center justify-center mb-3 relative overflow-hidden border border-slate-200">
                     
-                    <!-- Lógica de carregamento da logo.png com fallbacks -->
+                    <!-- Imagem da logo expandida -->
                     <img id="login-company-logo" 
                          src="./logo.png" 
                          onerror="if (this.src.indexOf('logo.png') !== -1) { this.src='./logo.PNG'; } else { this.style.display='none'; document.getElementById('fallback-logo-icon').classList.remove('hidden'); }" 
-                         class="max-w-full max-h-full object-contain relative z-10 drop-shadow" 
+                         class="w-full h-full object-contain relative z-10" 
                          alt="Logo CB Distribuidora">
                     
-                    <div id="fallback-logo-icon" class="hidden relative z-10 text-[#E30613]">
-                        <i data-lucide="truck" class="w-10 h-10"></i>
+                    <div id="fallback-logo-icon" class="hidden relative z-10 text-[#E30613] flex items-center gap-2 font-black text-xs">
+                        <i data-lucide="truck" class="w-8 h-8"></i>
+                        <span>CB DISTRIBUIDORA</span>
                     </div>
                 </div>
 
                 <span class="text-[10px] font-black tracking-[0.35em] text-[#E30613] uppercase italic">CB Distribuidora</span>
-                <h2 class="text-xl font-black text-white tracking-tight mt-0.5">Controle de Frota</h2>
+                <h2 class="text-xl font-black text-white tracking-tight mt-0.5">Imagens Frota</h2>
             </div>
 
             <!-- FORMULÁRIO DE LOGIN -->
@@ -158,8 +158,8 @@
     <!-- MODAL DE ELEVAÇÃO PARA MODO EDITAR (ADM) -->
     <div id="login-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] hidden flex items-center justify-center">
         <div class="bg-white p-6 rounded-2xl shadow-2xl w-80 flex flex-col gap-4">
-            <h3 class="font-black text-xs uppercase tracking-wider text-slate-900">Modo Edição (ADM)</h3>
-            <p class="text-[10px] text-slate-500">Confirme a senha de administrador para liberar privilégios de alteração:</p>
+            <h3 class="font-black text-xs uppercase tracking-wider text-slate-900">Modo Edição</h3>
+            <p class="text-[10px] text-slate-500">Confirme a senha de administrador:</p>
             <input type="password" id="login-password" placeholder="Senha do Administrador" class="w-full p-2 border rounded-lg text-xs outline-none focus:border-[#E30613]">
             <div class="flex gap-2 mt-2">
                 <button onclick="closeLoginModal()" class="w-1/2 bg-slate-200 text-slate-700 py-2 rounded-xl font-bold text-[10px] uppercase">Cancelar</button>
@@ -219,7 +219,7 @@
         </div>
         <div class="p-6 bg-slate-50 border-t border-slate-100">
             <button id="btn-generate-pdf" onclick="downloadCombinedPDF()" class="w-full bg-[#E30613] text-white py-3.5 rounded-xl font-black text-[9px] uppercase tracking-[0.2em] shadow-lg hover:bg-red-700 transition-all flex items-center justify-center gap-2">
-                <i data-lucide="layers" class="w-4 h-4"></i> Gerar PDF Lote
+                <i data-lucide="layers" class="w-4 h-4"></i> Gerar PDF
             </button>
         </div>
     </aside>
