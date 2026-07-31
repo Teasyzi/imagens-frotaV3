@@ -356,6 +356,8 @@
         let isAdmin = false;
         let activeTruckSlots = {};
 
+        const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
         function showToast(message, type = 'success') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -534,7 +536,7 @@
             render();
         }
 
-        // IMPORTAÇÃO DE FOTOS EM LOTE (GRAVA APENAS FOTOS, NUNCA ALTERA AS UNIDADES DOS VEÍCULOS)
+        // IMPORTAÇÃO DE FOTOS EM LOTE COM FILA CONTROLADA E PAUSA
         function triggerFolderSelect() {
             if (!isAdmin) return;
             const input = document.getElementById('folder-batch-input');
@@ -571,38 +573,42 @@
                     const part = pathParts[p];
                     
                     if (cicloIdx === -1) cicloIdx = mapearCiclo(part);
-                    
-                    if (/^\d+$/.test(part.trim())) {
-                        truckId = part.trim();
-                    }
+                    if (/^\d+$/.test(part.trim())) truckId = part.trim();
 
                     const matchSlot = part.toLowerCase().match(/slot\s*([1-4])/);
-                    if (matchSlot) {
-                        slotNum = parseInt(matchSlot[1]);
-                    }
+                    if (matchSlot) slotNum = parseInt(matchSlot[1]);
                 }
 
                 if (cicloIdx !== -1 && truckId && slotNum !== -1) {
                     const docId = `${activeYear}_${truckId}`;
                     const truckRef = db.collection('fleet').doc(docId);
-                    const truckDoc = await truckRef.get();
+                    
+                    try {
+                        const truckDoc = await truckRef.get();
 
-                    if (truckDoc.exists) {
-                        let finalBase64 = "";
-                        if (parseInt(activeYear) >= 2026) {
-                            const assignedUnit = truckDoc.data().cycleUnits ? truckDoc.data().cycleUnits[cicloIdx] : activeUnit;
-                            finalBase64 = await addWatermarkToImage(file, assignedUnit || activeUnit);
-                        } else {
-                            finalBase64 = await compressImage(file);
+                        if (truckDoc.exists) {
+                            let finalBase64 = "";
+                            if (parseInt(activeYear) >= 2026) {
+                                const assignedUnit = truckDoc.data().cycleUnits ? truckDoc.data().cycleUnits[cicloIdx] : activeUnit;
+                                finalBase64 = await addWatermarkToImage(file, assignedUnit || activeUnit);
+                            } else {
+                                finalBase64 = await compressImage(file);
+                            }
+
+                            const slotDocId = `c${cicloIdx}_s${slotNum}`;
+                            await truckRef.collection('slots').doc(slotDocId).set({
+                                base64: finalBase64,
+                                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+
+                            processedCount++;
+                            console.log(`[${processedCount}] Foto enviada: Veículo ${truckId} | Ciclo ${cicloIdx + 1} | Slot ${slotNum}`);
+
+                            await delay(120);
                         }
-
-                        const slotDocId = `c${cicloIdx}_s${slotNum}`;
-                        await truckRef.collection('slots').doc(slotDocId).set({
-                            base64: finalBase64,
-                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                        });
-
-                        processedCount++;
+                    } catch (err) {
+                        console.error(`Erro ao enviar foto do veículo ${truckId}:`, err);
+                        await delay(1500);
                     }
                 }
             }
@@ -614,7 +620,7 @@
             }
         }
 
-        // DASHBOARD ATUALIZADO: CÁLCULO INDIVIDUAL POR CICLO COM CRITÉRIO DE 1 FOTO
+        // DASHBOARD ATUALIZADO
         async function openDashboardModal() {
             document.getElementById('dashboard-modal').classList.remove('hidden');
             document.getElementById('dash-year-label').innerText = activeYear;
@@ -1040,7 +1046,7 @@
             fileInput.click();
         }
 
-        // ENVIO COM VERIFICAÇÃO CONDICIONAL DE MARCA D'ÁGUA POR ANO
+        // ENVIO INDIVIDUAL
         async function uploadFileToSlot(file, cycleIdx, slotIdx, truckDocId) {
             if (!file) return;
 
@@ -1056,7 +1062,6 @@
             try {
                 let finalBase64 = "";
 
-                // APLICAR MARCA D'ÁGUA APENAS SE FOR 2026 OU SUPERIOR
                 if (parseInt(activeYear) >= 2026) {
                     finalBase64 = await addWatermarkToImage(file, activeUnit);
                 } else {
@@ -1122,7 +1127,7 @@
         function handleImgLoad(img) { img.classList.remove('opacity-0'); img.classList.add('opacity-100'); }
         function handleImgError(img) { img.style.display = 'none'; }
         
-        // ZOOM HABILITADO PARA QUALQUER MODO E QUALQUER CICLO
+        // ZOOM NÍTIDO HABILITADO
         function openZoom(src) { 
             if (!src) return; 
             document.getElementById('lightbox-modal').style.display = 'flex'; 
@@ -1190,7 +1195,7 @@
             lucide.createIcons();
         }
 
-        // RENDERIZAÇÃO COLORIDA E NÍTIDA DOS CICLOS (SEM APLICAR GRAYSCALE OU OPACIDADE REDUZIDA)
+        // RENDERIZAÇÃO INTELIGENTE DE CICLOS (INATIVO/OCULTO x COLORIDO NÍTIDO)
         function renderSlotsGridOnly() {
             const list = getCurrentFilteredList();
             const truck = list[currentIndex] || { id: "---", docId:"", cycleUnits: [null, null, null], legacyImages:{} };
@@ -1198,6 +1203,12 @@
             document.getElementById('cycles-grid').innerHTML = [0, 1, 2].map(i => {
                 const assignedUnit = truck.cycleUnits ? truck.cycleUnits[i] : null;
                 const isActiveInThisUnit = (assignedUnit === activeUnit);
+                const isCompletelyInactive = !assignedUnit || assignedUnit === "Inativo";
+
+                // Se o ciclo for totalmente inativo (Sem unidade definida), esconde a caixa inteira
+                if (!isAdmin && isCompletelyInactive) {
+                    return `<div class="hidden"></div>`;
+                }
                 
                 return `
                     <div class="flex flex-col rounded-3xl border-2 transition-all duration-300 overflow-hidden bg-white border-slate-200 shadow-md">
@@ -1209,7 +1220,7 @@
                             
                             ${isAdmin ? `
                                 <select onchange="setCycleUnit(${i}, this.value)" class="text-[8px] font-bold border rounded px-1 py-0.5 bg-white text-slate-800 outline-none">
-                                    <option value="">(Nenhuma)</option>
+                                    <option value="">(Nenhuma / Inativo)</option>
                                     ${ALL_UNITS.map(u => `<option value="${u}" ${u === assignedUnit ? 'selected' : ''}>${u}</option>`).join('')}
                                 </select>
                             ` : `
