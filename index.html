@@ -123,15 +123,15 @@
             <div class="flex justify-between items-center border-b pb-3 mb-4">
                 <div class="flex items-center gap-2 text-slate-900">
                     <i data-lucide="user-check" class="w-5 h-5 text-[#E30613]"></i>
-                    <h3 class="font-black text-xs uppercase tracking-wider">Gerenciar Editores Autorizados</h3>
+                    <h3 class="font-black text-xs uppercase tracking-wider">Gerenciar permissões.</h3>
                 </div>
                 <button onclick="closeEditorsModal()" class="text-slate-400 hover:text-red-600"><i data-lucide="x" class="w-4 h-4"></i></button>
             </div>
 
             <div class="space-y-3 mb-4">
-                <label class="text-[10px] font-black text-slate-400 uppercase block">Adicionar Novo E-mail de Editor</label>
+                <label class="text-[10px] font-black text-slate-400 uppercase block">Adicionar Novo E-mail</label>
                 <div class="flex gap-2">
-                    <input type="email" id="new-editor-email" placeholder="usuario@costabrasil.com.br" class="flex-1 p-2.5 bg-slate-100 border-none rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-[#E30613]/20">
+                    <input type="email" id="new-editor-email" placeholder="usuario@cbdistribuidora.com.br" class="flex-1 p-2.5 bg-slate-100 border-none rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-[#E30613]/20">
                     <button onclick="addEditorEmail()" class="bg-[#E30613] hover:bg-red-700 text-white font-black text-xs px-4 py-2.5 rounded-xl uppercase tracking-wider shadow">Adicionar</button>
                 </div>
             </div>
@@ -152,8 +152,8 @@
                         <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
                     </div>
                     <div>
-                        <h3 class="font-black text-sm uppercase tracking-wider">Dashboard de Indicadores por Ciclo</h3>
-                        <p class="text-[10px] text-slate-400 font-bold uppercase">Cobertura Fotográfica da Frota • Ano <span id="dash-year-label">2025</span></p>
+                        <h3 class="font-black text-sm uppercase tracking-wider">Dashboard</h3>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase">Imagens Frota • Ano <span id="dash-year-label">2025</span></p>
                     </div>
                 </div>
                 <button onclick="closeDashboardModal()" class="text-slate-400 hover:text-red-600"><i data-lucide="x" class="w-5 h-5"></i></button>
@@ -170,14 +170,14 @@
                         <span id="dash-notes-trucks" class="text-2xl font-black text-[#E30613] mt-1">0</span>
                     </div>
                     <div class="bg-slate-900 p-3.5 rounded-2xl text-white flex flex-col">
-                        <span class="text-[9px] font-black text-slate-400 uppercase">Cobertura Global</span>
+                        <span class="text-[9px] font-black text-slate-400 uppercase">Progresso Total</span>
                         <span id="dash-photo-progress" class="text-2xl font-black text-emerald-400 mt-1">0%</span>
                     </div>
                 </div>
 
                 <div class="space-y-4">
                     <h4 class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                        <i data-lucide="map-pin" class="w-3.5 h-3.5 text-[#E30613]"></i> Cobertura por Ciclo (Pelo menos 1 Foto por Veículo)
+                        <i data-lucide="map-pin" class="w-3.5 h-3.5 text-[#E30613]"></i> Progresso por Ciclo
                     </h4>
                     <div id="dash-cycles-breakdown" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
                 </div>
@@ -338,7 +338,7 @@
         const ALL_UNITS = ["CB NORTE", "CB SUL", "BARREIRAS", "JUAZEIRO", "OT"];
 
         // E-MAIL MESTRE INICIAL
-        const MASTER_SUPER_ADM = "adm@costabrasil.com.br";
+        const MASTER_SUPER_ADM = "aqueiroz@cbdistribuidora.com.br";
         let authorizedEditorsList = [MASTER_SUPER_ADM];
 
         const cycleInfo = [
@@ -536,7 +536,7 @@
             render();
         }
 
-        // IMPORTAÇÃO DE FOTOS EM LOTE COM FILA CONTROLADA E PAUSA
+        // IMPORTAÇÃO DE FOTOS FLEXÍVEL (ACEITA QUALQUER NOME DE FOTO E DISTRIBUI SEQUENCIALMENTE)
         function triggerFolderSelect() {
             if (!isAdmin) return;
             const input = document.getElementById('folder-batch-input');
@@ -553,94 +553,88 @@
         }
 
         async function handleFolderBatchUpload(input) {
-    const files = Array.from(input.files || []);
-    if (files.length === 0) return;
+            const files = Array.from(input.files || []);
+            if (files.length === 0) return;
 
-    showToast("Iniciando importação flexível de imagens...", "success");
-    let processedCount = 0;
+            showToast("Iniciando importação flexível de imagens...", "success");
+            let processedCount = 0;
 
-    // Filtra apenas imagens válidas (JPEG, PNG, WEBP, etc)
-    const imageFiles = files.filter(f => f.type.startsWith('image/'));
+            const imageFiles = files.filter(f => f.type.startsWith('image/'));
+            const imagensAgrupadas = {};
 
-    // Agrupa as imagens por Veículo e por Ciclo
-    const imagensAgrupadas = {};
+            imageFiles.forEach(file => {
+                const pathParts = file.webkitRelativePath.split('/');
+                let cicloIdx = -1;
+                let truckId = "";
 
-    imageFiles.forEach(file => {
-        const pathParts = file.webkitRelativePath.split('/');
-        let cicloIdx = -1;
-        let truckId = "";
+                for (let p = 0; p < pathParts.length; p++) {
+                    const part = pathParts[p];
+                    if (cicloIdx === -1) cicloIdx = mapearCiclo(part);
+                    if (/^\d+$/.test(part.trim())) truckId = part.trim();
+                }
 
-        for (let p = 0; p < pathParts.length; p++) {
-            const part = pathParts[p];
-            if (cicloIdx === -1) cicloIdx = mapearCiclo(part);
-            if (/^\d+$/.test(part.trim())) truckId = part.trim();
-        }
+                if (cicloIdx !== -1 && truckId) {
+                    const chave = `${cicloIdx}_${truckId}`;
+                    if (!imagensAgrupadas[chave]) imagensAgrupadas[chave] = [];
+                    imagensAgrupadas[chave].push(file);
+                }
+            });
 
-        if (cicloIdx !== -1 && truckId) {
-            const chave = `${cicloIdx}_${truckId}`;
-            if (!imagensAgrupadas[chave]) imagensAgrupadas[chave] = [];
-            imagensAgrupadas[chave].push(file);
-        }
-    });
+            for (const [chave, listaFotos] of Object.entries(imagensAgrupadas)) {
+                const [cicloIdxStr, truckId] = chave.split('_');
+                const cicloIdx = parseInt(cicloIdxStr);
+                const docId = `${activeYear}_${truckId}`;
+                const truckRef = db.collection('fleet').doc(docId);
 
-    // Processa os grupos garantindo a distribuição nos slots 1, 2, 3 e 4
-    for (const [chave, listaFotos] of Object.entries(imagensAgrupadas)) {
-        const [cicloIdxStr, truckId] = chave.split('_');
-        const cicloIdx = parseInt(cicloIdxStr);
-        const docId = `${activeYear}_${truckId}`;
-        const truckRef = db.collection('fleet').doc(docId);
+                try {
+                    const truckDoc = await truckRef.get();
 
-        try {
-            const truckDoc = await truckRef.get();
+                    if (truckDoc.exists) {
+                        listaFotos.sort((a, b) => a.name.localeCompare(b.name));
 
-            if (truckDoc.exists) {
-                // Ordena os arquivos pelo nome para manter a sequência correta
-                listaFotos.sort((a, b) => a.name.localeCompare(b.name));
+                        for (let idx = 0; idx < Math.min(listaFotos.length, 4); idx++) {
+                            const file = listaFotos[idx];
+                            
+                            let slotNum = idx + 1;
+                            const matchSlot = file.name.toLowerCase().match(/slot\s*([1-4])/);
+                            if (matchSlot) {
+                                slotNum = parseInt(matchSlot[1]);
+                            }
 
-                for (let idx = 0; idx < Math.min(listaFotos.length, 4); idx++) {
-                    const file = listaFotos[idx];
-                    
-                    // Verifica se o arquivo traz "slot1..4" no nome; se não, usa a posição da sequência (1 a 4)
-                    let slotNum = idx + 1;
-                    const matchSlot = file.name.toLowerCase().match(/slot\s*([1-4])/);
-                    if (matchSlot) {
-                        slotNum = parseInt(matchSlot[1]);
+                            let finalBase64 = "";
+                            if (parseInt(activeYear) >= 2026) {
+                                const assignedUnit = truckDoc.data().cycleUnits ? truckDoc.data().cycleUnits[cicloIdx] : activeUnit;
+                                finalBase64 = await addWatermarkToImage(file, assignedUnit || activeUnit);
+                            } else {
+                                finalBase64 = await compressImage(file);
+                            }
+
+                            const slotDocId = `c${cicloIdx}_s${slotNum}`;
+                            await truckRef.collection('slots').doc(slotDocId).set({
+                                base64: finalBase64,
+                                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+
+                            processedCount++;
+                            console.log(`[${processedCount}] Foto salva: Veículo ${truckId} | Ciclo ${cicloIdx + 1} | Slot ${slotNum}`);
+
+                            await delay(120);
+                        }
                     }
-
-                    let finalBase64 = "";
-                    if (parseInt(activeYear) >= 2026) {
-                        const assignedUnit = truckDoc.data().cycleUnits ? truckDoc.data().cycleUnits[cicloIdx] : activeUnit;
-                        finalBase64 = await addWatermarkToImage(file, assignedUnit || activeUnit);
-                    } else {
-                        finalBase64 = await compressImage(file);
-                    }
-
-                    const slotDocId = `c${cicloIdx}_s${slotNum}`;
-                    await truckRef.collection('slots').doc(slotDocId).set({
-                        base64: finalBase64,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-
-                    processedCount++;
-                    console.log(`[${processedCount}] Foto salva: Veículo ${truckId} | Ciclo ${cicloIdx + 1} | Slot ${slotNum} (${file.name})`);
-
-                    await delay(120); // Pausa de segurança para não estourar limite do Firestore
+                } catch (err) {
+                    console.error(`Erro ao importar fotos do veículo ${truckId}:`, err);
+                    await delay(1000);
                 }
             }
-        } catch (err) {
-            console.error(`Erro ao importar fotos do veículo ${truckId}:`, err);
-            await delay(1000);
+
+            if (processedCount > 0) {
+                showToast(`Sucesso! ${processedCount} fotos importadas para a frota de ${activeYear}.`);
+            } else {
+                showToast("Nenhuma pasta de veículo cadastrado foi encontrada.", "error");
+            }
         }
-    }
 
-    if (processedCount > 0) {
-        showToast(`Sucesso! ${processedCount} fotos importadas para a frota de ${activeYear}.`);
-    } else {
-        showToast("Nenhuma pasta de veículo cadastrado foi encontrada.", "error");
-    }
-}
-
-        // DASHBOARD ATUALIZADO
+        // DASHBOARD CORRIGIDO E DIRETO (SEM ERROS DE CONSULTA EM GRUPO)
         async function openDashboardModal() {
             document.getElementById('dashboard-modal').classList.remove('hidden');
             document.getElementById('dash-year-label').innerText = activeYear;
@@ -650,20 +644,6 @@
 
             document.getElementById('dash-total-trucks').innerText = totalTrucks;
             document.getElementById('dash-notes-trucks').innerText = notesTrucks;
-
-            const slotsSnapshot = await db.collectionGroup("slots").get().catch(() => null);
-            
-            let imagesMap = {};
-            if (slotsSnapshot) {
-                slotsSnapshot.forEach(doc => {
-                    const pathSegments = doc.ref.path.split('/');
-                    const truckDocId = pathSegments[1];
-                    const slotDocId = doc.id;
-
-                    if (!imagesMap[truckDocId]) imagesMap[truckDocId] = {};
-                    imagesMap[truckDocId][slotDocId] = true;
-                });
-            }
 
             let cycleStats = [
                 { totalActive: 0, withPhoto: 0, units: {} },
@@ -677,6 +657,7 @@
                 cycleStats[2].units[u] = { active: 0, withPhoto: 0 };
             });
 
+            // Mapeia veículos e checa presenças de fotos ativas no estado
             rawFleetDocs.forEach(truck => {
                 if (!truck.cycleUnits) return;
 
@@ -685,13 +666,15 @@
                         cycleStats[cycleIdx].totalActive++;
                         cycleStats[cycleIdx].units[assignedUnit].active++;
 
-                        const truckSlots = imagesMap[truck.docId] || {};
-                        const hasAtLeastOnePhoto = [1, 2, 3, 4].some(s => 
-                            truckSlots[`c${cycleIdx}_s${s}`] || 
-                            (truck.legacyImages && truck.legacyImages[`c${cycleIdx}_s${s}`])
-                        );
+                        // Se o veículo atual tem slots carregados ou imagens salvas
+                        let hasPhoto = false;
+                        if (truck.docId === currentTruckDocId) {
+                            hasPhoto = [1, 2, 3, 4].some(s => activeTruckSlots[`c${cycleIdx}_s${s}`]);
+                        } else {
+                            hasPhoto = [1, 2, 3, 4].some(s => truck.legacyImages && truck.legacyImages[`c${cycleIdx}_s${s}`]);
+                        }
 
-                        if (hasAtLeastOnePhoto) {
+                        if (hasPhoto) {
                             cycleStats[cycleIdx].withPhoto++;
                             cycleStats[cycleIdx].units[assignedUnit].withPhoto++;
                         }
@@ -1215,70 +1198,71 @@
             lucide.createIcons();
         }
 
-// RENDERIZAÇÃO INTELIGENTE DE CICLOS (PRESERVA A POSIÇÃO DAS COLUNAS)
-function renderSlotsGridOnly() {
-    const list = getCurrentFilteredList();
-    const truck = list[currentIndex] || { id: "---", docId:"", cycleUnits: [null, null, null], legacyImages:{} };
+        // RENDERIZAÇÃO INTELIGENTE DE CICLOS (PRESERVA A POSIÇÃO DAS COLUNAS)
+        function renderSlotsGridOnly() {
+            const list = getCurrentFilteredList();
+            const truck = list[currentIndex] || { id: "---", docId:"", cycleUnits: [null, null, null], legacyImages:{} };
 
-    document.getElementById('cycles-grid').innerHTML = [0, 1, 2].map(i => {
-        const assignedUnit = truck.cycleUnits ? truck.cycleUnits[i] : null;
-        const isActiveInThisUnit = (assignedUnit === activeUnit);
-        const isCompletelyInactive = !assignedUnit || assignedUnit === "Inativo";
+            document.getElementById('cycles-grid').innerHTML = [0, 1, 2].map(i => {
+                const assignedUnit = truck.cycleUnits ? truck.cycleUnits[i] : null;
+                const isActiveInThisUnit = (assignedUnit === activeUnit);
+                const isCompletelyInactive = !assignedUnit || assignedUnit === "Inativo";
 
-        // Se o ciclo for inativo para o veículo, mantém o espaço na coluna mas esconde o conteúdo (visibility: hidden)
-        if (!isAdmin && isCompletelyInactive) {
-            return `
-                <div class="flex flex-col rounded-3xl border-2 border-transparent bg-transparent invisible">
-                    <div class="px-4 py-2 border-b border-transparent">
-                        <span class="text-[9px] font-black text-transparent uppercase tracking-widest">${cycleInfo[i].label}</span>
-                    </div>
-                </div>`;
-        }
-        
-        return `
-            <div class="flex flex-col rounded-3xl border-2 transition-all duration-300 overflow-hidden bg-white border-slate-200 shadow-md">
-                <div class="px-4 py-2 border-b flex justify-between items-center ${isActiveInThisUnit ? 'bg-[#E30613]/5' : 'bg-slate-100/80'}">
-                    <div>
-                        <span class="text-[9px] font-black text-slate-800 uppercase tracking-widest">${cycleInfo[i].label}</span>
-                        <span class="text-[7px] font-bold text-slate-400 block italic">${cycleInfo[i].range}</span>
-                    </div>
-                    
-                    ${isAdmin ? `
-                        <select onchange="setCycleUnit(${i}, this.value)" class="text-[8px] font-bold border rounded px-1 py-0.5 bg-white text-slate-800 outline-none">
-                            <option value="">(Nenhuma / Inativo)</option>
-                            ${ALL_UNITS.map(u => `<option value="${u}" ${u === assignedUnit ? 'selected' : ''}>${u}</option>`).join('')}
-                        </select>
-                    ` : `
-                        ${isActiveInThisUnit ? '<i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-500"></i>' : `<span class="text-[8px] font-black text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full uppercase italic">${assignedUnit ? 'EM ' + assignedUnit : 'INATIVO'}</span>`}
-                    `}
-                </div>
-                <div class="flex-1 p-2 grid grid-cols-2 grid-rows-2 gap-2 overflow-hidden">
-                    ${[1, 2, 3, 4].map(s => {
-                        const slotKey = `c${i}_s${s}`;
-                        const imgUrl = activeTruckSlots[slotKey] || (truck.legacyImages ? truck.legacyImages[slotKey] : "") || "";
-                        const canUpload = isAdmin && isActiveInThisUnit;
-                        return `
-                            <div id="slot-container-${i}-${s}" 
-                                 ${canUpload ? `onclick="event.stopPropagation(); triggerImageUpload(${i}, ${s})"` : ''} 
-                                 ondragover="handleDragOver(event)" 
-                                 ondragleave="handleDragLeave(event)" 
-                                 ondrop="handleDrop(event, ${i}, ${s}, '${truck.docId}')"
-                                 class="image-slot bg-slate-50 rounded-2xl border border-slate-200 relative group overflow-hidden ${canUpload ? 'border-blue-300 hover:bg-blue-50 cursor-pointer' : 'cursor-zoom-in'} flex items-center justify-center shadow-sm">
-                                
-                                ${imgUrl ? `<img src="${imgUrl}" onload="handleImgLoad(this)" onerror="handleImgError(this)" onclick="openZoom('${imgUrl}')" class="opacity-0 max-w-full max-h-full object-contain z-10 transition-transform duration-300 group-hover:scale-105" alt="Foto da frota">` : ''}
-                                
-                                <i data-lucide="${canUpload ? 'upload-cloud' : 'image'}" class="img-placeholder-icon absolute w-5 h-5 ${canUpload ? 'text-blue-400' : 'text-slate-200'} z-0"></i>
-                                
-                                ${isAdmin && imgUrl ? `<button onclick="deleteImage(event, ${i}, ${s}, '${truck.docId}')" title="Excluir imagem" class="absolute top-1.5 right-1.5 bg-red-600/90 hover:bg-red-700 text-white p-1 rounded-full z-30 transition-all shadow-md"><i data-lucide="trash-2" class="w-3 h-3"></i></button>` : ''}
-                                
-                                ${canUpload ? `<input type="file" id="file-input-${i}-${s}" accept="image/*" class="hidden" onclick="event.stopPropagation();" onchange="handleFileUpload(this, ${i}, ${s}, '${truck.docId}')">` : ''}
-                                </div>`;
-                        }).join('')}
-                    </div>
-                </div>`;
+                // Se o ciclo for inativo para o veículo, mantém o espaço na coluna mas esconde o conteúdo (visibility: hidden)
+                if (!isAdmin && isCompletelyInactive) {
+                    return `
+                        <div class="flex flex-col rounded-3xl border-2 border-transparent bg-transparent invisible">
+                            <div class="px-4 py-2 border-b border-transparent">
+                                <span class="text-[9px] font-black text-transparent uppercase tracking-widest">${cycleInfo[i].label}</span>
+                            </div>
+                        </div>`;
+                }
+                
+                return `
+                    <div class="flex flex-col rounded-3xl border-2 transition-all duration-300 overflow-hidden bg-white border-slate-200 shadow-md">
+                        <div class="px-4 py-2 border-b flex justify-between items-center ${isActiveInThisUnit ? 'bg-[#E30613]/5' : 'bg-slate-100/80'}">
+                            <div>
+                                <span class="text-[9px] font-black text-slate-800 uppercase tracking-widest">${cycleInfo[i].label}</span>
+                                <span class="text-[7px] font-bold text-slate-400 block italic">${cycleInfo[i].range}</span>
+                            </div>
+                            
+                            ${isAdmin ? `
+                                <select onchange="setCycleUnit(${i}, this.value)" class="text-[8px] font-bold border rounded px-1 py-0.5 bg-white text-slate-800 outline-none">
+                                    <option value="">(Nenhuma / Inativo)</option>
+                                    ${ALL_UNITS.map(u => `<option value="${u}" ${u === assignedUnit ? 'selected' : ''}>${u}</option>`).join('')}
+                                </select>
+                            ` : `
+                                ${isActiveInThisUnit ? '<i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-500"></i>' : `<span class="text-[8px] font-black text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full uppercase italic">${assignedUnit ? 'EM ' + assignedUnit : 'INATIVO'}</span>`}
+                            `}
+                        </div>
+                        <div class="flex-1 p-2 grid grid-cols-2 grid-rows-2 gap-2 overflow-hidden">
+                            ${[1, 2, 3, 4].map(s => {
+                                const slotKey = `c${i}_s${s}`;
+                                const imgUrl = activeTruckSlots[slotKey] || (truck.legacyImages ? truck.legacyImages[slotKey] : "") || "";
+                                const canUpload = isAdmin && isActiveInThisUnit;
+                                return `
+                                    <div id="slot-container-${i}-${s}" 
+                                         ${canUpload ? `onclick="event.stopPropagation(); triggerImageUpload(${i}, ${s})"` : ''} 
+                                         ondragover="handleDragOver(event)" 
+                                         ondragleave="handleDragLeave(event)" 
+                                         ondrop="handleDrop(event, ${i}, ${s}, '${truck.docId}')"
+                                         class="image-slot bg-slate-50 rounded-2xl border border-slate-200 relative group overflow-hidden ${canUpload ? 'border-blue-300 hover:bg-blue-50 cursor-pointer' : 'cursor-zoom-in'} flex items-center justify-center shadow-sm">
+                                        
+                                        ${imgUrl ? `<img src="${imgUrl}" onload="handleImgLoad(this)" onerror="handleImgError(this)" onclick="openZoom('${imgUrl}')" class="opacity-0 max-w-full max-h-full object-contain z-10 transition-transform duration-300 group-hover:scale-105" alt="Foto da frota">` : ''}
+                                        
+                                        <i data-lucide="${canUpload ? 'upload-cloud' : 'image'}" class="img-placeholder-icon absolute w-5 h-5 ${canUpload ? 'text-blue-400' : 'text-slate-200'} z-0"></i>
+                                        
+                                        ${isAdmin && imgUrl ? `<button onclick="deleteImage(event, ${i}, ${s}, '${truck.docId}')" title="Excluir imagem" class="absolute top-1.5 right-1.5 bg-red-600/90 hover:bg-red-700 text-white p-1 rounded-full z-30 transition-all shadow-md"><i data-lucide="trash-2" class="w-3 h-3"></i></button>` : ''}
+                                        
+                                        ${canUpload ? `<input type="file" id="file-input-${i}-${s}" accept="image/*" class="hidden" onclick="event.stopPropagation();" onchange="handleFileUpload(this, ${i}, ${s}, '${truck.docId}')">` : ''}
+                                    </div>`;
+                            }).join('')}
+                        </div>
+                    </div>`;
             }).join('');
-        lucide.createIcons();
-    }
+            lucide.createIcons();
+        }
+
         function changeUnit(unit) { activeUnit = unit; currentIndex = 0; render(true); }
         function setStep(i) { currentIndex = i; render(); }
 
