@@ -496,6 +496,14 @@
         }
 
         // LÓGICA DE LOGIN PRINCIPAL
+        function resetLoginButton() {
+            const btnSubmit = document.getElementById('btn-login-submit');
+            if (!btnSubmit) return;
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = `<i data-lucide="log-in" class="w-4 h-4"></i> ACESSAR`;
+            lucide.createIcons();
+        }
+
         async function handleMainLogin() {
             const email = document.getElementById('main-login-email').value.trim();
             const password = document.getElementById('main-login-password').value.trim();
@@ -507,6 +515,7 @@
             }
 
             const originalBtnText = btnSubmit.innerHTML;
+            btnSubmit.disabled = true;
             btnSubmit.innerHTML = `<i data-lucide="refresh-cw" class="w-4 h-4 animate-spin"></i> AUTENTICANDO...`;
             lucide.createIcons();
 
@@ -515,12 +524,14 @@
                 showToast("Acesso liberado!");
             } catch (error) {
                 btnSubmit.innerHTML = originalBtnText;
+                btnSubmit.disabled = false;
                 lucide.createIcons();
                 showToast("Erro de acesso: " + error.message, "error");
             }
         }
 
         function handleSignOut() {
+            resetLoginButton();
             localStorage.removeItem(LAST_ACTIVITY_KEY);
             auth.signOut();
             isAdmin = false;
@@ -587,6 +598,7 @@
                 listenToAuthorizedEditors();
                 loadYearsList();
             } else {
+                resetLoginButton();
                 loadingScreen.classList.add('hidden');
                 loginScreen.classList.remove('hidden');
                 isAdmin = false;
