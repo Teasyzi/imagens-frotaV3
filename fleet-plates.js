@@ -2,6 +2,8 @@
 // Campos importados: placa, modelo, tipo e ano-modelo (fallback para ano de fabricação).
 // Nenhum outro campo da planilha é importado.
 window.FLEET_DATA_MAP = Object.freeze({
+  "159": {"plate":"OIQ2083","model":"ATEGO 1719","type":"Caminhao TOCO","year":2012},
+  "161": {"plate":"OIL9847","model":"ATEGO 1719","type":"Caminhao TOCO","year":2012},
   "113": {"plate":"NQR1297","model":"MB - 1718","type":"Caminhao TOCO","year":2009},
   "120": {"plate":"JQF5526","model":"SR/RANDON SR FG","type":"Semi-Reboque","year":2006},
   "121": {"plate":"JQF5527","model":"F-4331","type":"Caminhao-Trator TOCO","year":2005},
