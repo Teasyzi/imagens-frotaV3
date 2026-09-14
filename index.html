@@ -804,6 +804,7 @@ async function refreshTruckPhotoSummary(truckDocId) {
         const summary = buildPhotoSummaryFromSlotKeys(snapshot.docs.map(doc => doc.id), truck ? truck.legacyImages : {});
         await db.collection('fleet').doc(truckDocId).set({ photoSummary: summary }, { merge: true });
         if (truck) truck.photoSummary = summary;
+        updateDashboardCacheFromCurrentFleet();
         return summary;
     } catch (error) {
         console.warn('Falha ao atualizar resumo de fotos:', truckDocId, error);
@@ -818,14 +819,23 @@ function truckHasPhotoInCycle(truck, cycleIdx) {
     return [1, 2, 3, 4].some(slotIdx => Boolean(truck.legacyImages && truck.legacyImages[`c${cycleIdx}_s${slotIdx}`]));
 }
 
-function renderDashboardStats() {
+// CACHE + RENDERIZAÇÃO ESTÁVEL DO DASHBOARD
+const DASHBOARD_CACHE_PREFIX = 'cb-frota-dashboard-v2:';
+let lastDashboardRenderSignature = '';
+
+function getDashboardCacheKey() {
+    const uid = auth.currentUser ? auth.currentUser.uid : 'anonymous';
+    return `${DASHBOARD_CACHE_PREFIX}${uid}:${activeYear}`;
+}
+
+function calculateDashboardStats() {
     const totalTrucks = rawFleetDocs.length;
     const notesTrucks = rawFleetDocs.filter(t => t.notes || t.transfer).length;
-    document.getElementById('dash-total-trucks').innerText = totalTrucks;
-    document.getElementById('dash-notes-trucks').innerText = notesTrucks;
-
     const cycleStats = [0, 1, 2].map(() => ({ totalActive: 0, withPhoto: 0, units: {} }));
-    ALL_UNITS.forEach(unit => cycleStats.forEach(cycle => cycle.units[unit] = { active: 0, withPhoto: 0 }));
+
+    ALL_UNITS.forEach(unit => cycleStats.forEach(cycle => {
+        cycle.units[unit] = { active: 0, withPhoto: 0 };
+    }));
 
     rawFleetDocs.forEach(truck => {
         if (!truck.cycleUnits) return;
@@ -842,12 +852,65 @@ function renderDashboardStats() {
 
     const globalActive = cycleStats.reduce((sum, cycle) => sum + cycle.totalActive, 0);
     const globalWithPhoto = cycleStats.reduce((sum, cycle) => sum + cycle.withPhoto, 0);
-    const globalPercent = globalActive > 0 ? Math.round((globalWithPhoto / globalActive) * 100) : 0;
-    document.getElementById('dash-photo-progress').innerText = `${globalPercent}%`;
 
-    document.getElementById('dash-cycles-breakdown').innerHTML = [0, 1, 2].map(cycleIdx => {
-        const stats = cycleStats[cycleIdx];
-        const cyclePercent = stats.totalActive > 0 ? Math.round((stats.withPhoto / stats.totalActive) * 100) : 0;
+    return {
+        version: 2,
+        year: String(activeYear),
+        totalTrucks,
+        notesTrucks,
+        globalPercent: globalActive > 0 ? Math.round((globalWithPhoto / globalActive) * 100) : 0,
+        cycles: cycleStats,
+        savedAt: Date.now()
+    };
+}
+
+function saveDashboardCache(stats) {
+    if (!stats || !auth.currentUser) return;
+    try {
+        localStorage.setItem(getDashboardCacheKey(), JSON.stringify(stats));
+    } catch (error) {
+        console.warn('Não foi possível salvar o cache do dashboard:', error);
+    }
+}
+
+function loadDashboardCache() {
+    try {
+        const cached = JSON.parse(localStorage.getItem(getDashboardCacheKey()) || 'null');
+        if (!cached || cached.version !== 2 || String(cached.year) !== String(activeYear) || !Array.isArray(cached.cycles)) return null;
+        return cached;
+    } catch (error) {
+        console.warn('Cache do dashboard inválido:', error);
+        return null;
+    }
+}
+
+function getDashboardSignature(stats) {
+    if (!stats) return '';
+    const stable = {
+        year: stats.year,
+        totalTrucks: stats.totalTrucks,
+        notesTrucks: stats.notesTrucks,
+        globalPercent: stats.globalPercent,
+        cycles: stats.cycles
+    };
+    return JSON.stringify(stable);
+}
+
+function renderDashboardStats(stats = null, force = false) {
+    stats = stats || calculateDashboardStats();
+    const signature = getDashboardSignature(stats);
+    if (!force && signature === lastDashboardRenderSignature) return;
+    lastDashboardRenderSignature = signature;
+
+    document.getElementById('dash-year-label').innerText = stats.year;
+    document.getElementById('dash-total-trucks').innerText = stats.totalTrucks;
+    document.getElementById('dash-notes-trucks').innerText = stats.notesTrucks;
+    document.getElementById('dash-photo-progress').innerText = `${stats.globalPercent}%`;
+
+    const breakdown = document.getElementById('dash-cycles-breakdown');
+    const nextHtml = [0, 1, 2].map(cycleIdx => {
+        const cycle = stats.cycles[cycleIdx] || { totalActive: 0, withPhoto: 0, units: {} };
+        const cyclePercent = cycle.totalActive > 0 ? Math.round((cycle.withPhoto / cycle.totalActive) * 100) : 0;
         return `
             <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col gap-3">
                 <div class="border-b pb-2 flex justify-between items-center">
@@ -859,7 +922,7 @@ function renderDashboardStats() {
                 </div>
                 <div class="space-y-2.5">
                     ${ALL_UNITS.map(unit => {
-                        const unitData = stats.units[unit];
+                        const unitData = cycle.units[unit] || { active: 0, withPhoto: 0 };
                         const activeCount = unitData.active;
                         const photoCount = unitData.withPhoto;
                         const unitPercent = activeCount > 0 ? Math.round((photoCount / activeCount) * 100) : 0;
@@ -870,14 +933,25 @@ function renderDashboardStats() {
                                     <span class="font-black ${unitPercent === 100 ? 'text-emerald-600' : 'text-slate-800'}">${photoCount}/${activeCount} veíq. (${unitPercent}%)</span>
                                 </div>
                                 <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                                    <div class="${unitPercent === 100 ? 'bg-emerald-500' : 'bg-[#E30613]'} h-full" style="width: ${unitPercent}%"></div>
+                                    <div class="${unitPercent === 100 ? 'bg-emerald-500' : 'bg-[#E30613]'} h-full transition-[width] duration-300" style="width: ${unitPercent}%"></div>
                                 </div>
                             </div>`;
                     }).join('')}
                 </div>
             </div>`;
     }).join('');
+
+    // Só troca o HTML quando os números realmente mudaram. Evita o flash visual causado por re-renderizações idênticas.
+    if (breakdown.innerHTML !== nextHtml) breakdown.innerHTML = nextHtml;
     lucide.createIcons();
+}
+
+function updateDashboardCacheFromCurrentFleet() {
+    if (!rawFleetDocs.length) return;
+    const freshStats = calculateDashboardStats();
+    saveDashboardCache(freshStats);
+    const modal = document.getElementById('dashboard-modal');
+    if (modal && !modal.classList.contains('hidden')) renderDashboardStats(freshStats);
 }
 
 async function hydrateMissingDashboardSummaries() {
@@ -893,14 +967,26 @@ async function hydrateMissingDashboardSummaries() {
         }
     }
     await Promise.all(Array.from({ length: Math.min(concurrency, missing.length) }, worker));
-    if (!document.getElementById('dashboard-modal').classList.contains('hidden')) renderDashboardStats();
+    updateDashboardCacheFromCurrentFleet();
 }
 
 function openDashboardModal() {
-    document.getElementById('dashboard-modal').classList.remove('hidden');
-    document.getElementById('dash-year-label').innerText = activeYear;
-    // Renderiza imediatamente usando resumos já carregados. O backfill roda em segundo plano e não bloqueia a abertura.
-    renderDashboardStats();
+    const modal = document.getElementById('dashboard-modal');
+    modal.classList.remove('hidden');
+
+    // 1) Abre instantaneamente com a última fotografia estatística salva.
+    const cached = loadDashboardCache();
+    if (cached) renderDashboardStats(cached, true);
+
+    // 2) Compara com os dados vivos já carregados e só redesenha se algo realmente mudou.
+    if (rawFleetDocs.length) {
+        const fresh = calculateDashboardStats();
+        saveDashboardCache(fresh);
+        renderDashboardStats(fresh, !cached);
+    }
+
+    // 3) Completa resumos antigos em segundo plano. O listener da frota não redesenha mais a tela principal
+    // quando a única mudança é photoSummary, eliminando o pisca-pisca.
     hydrateMissingDashboardSummaries();
 }
 
@@ -1038,6 +1124,22 @@ function openDashboardModal() {
         function closeAuditModal() { document.getElementById('audit-modal').classList.add('hidden'); }
 
         let unsubscribeFleet = null;
+
+        function getFleetUiSignature(docs) {
+            return JSON.stringify((docs || []).map(t => ({
+                docId: t.docId,
+                id: t.id,
+                cycleUnits: t.cycleUnits,
+                active: t.active,
+                transfer: t.transfer,
+                notes: t.notes,
+                plate: t.plate,
+                model: t.model,
+                type: t.type,
+                vehicleYear: t.vehicleYear
+            })).sort((a, b) => String(a.docId).localeCompare(String(b.docId))));
+        }
+
         function loadDataFromFirebase() {
             const yearSelector = document.getElementById('year-selector');
             yearSelector.innerHTML = availableYears.map(y => `<option value="${y}" ${y === activeYear ? 'selected' : ''} class="text-slate-900">${y}</option>`).join('');
@@ -1048,7 +1150,7 @@ function openDashboardModal() {
             unsubscribeFleet = db.collection("fleet")
                 .where("year", "==", activeYear)
                 .onSnapshot(snapshot => {
-                    rawFleetDocs = [];
+                    const nextFleetDocs = [];
                     snapshot.forEach(doc => {
                         const data = doc.data();
                         let cycleUnits = data.cycleUnits;
@@ -1063,7 +1165,7 @@ function openDashboardModal() {
 
                         const truckId = doc.id.split("_")[1] || doc.id;
                         const spreadsheetData = (window.FLEET_DATA_MAP && window.FLEET_DATA_MAP[truckId]) || {};
-                        rawFleetDocs.push({
+                        nextFleetDocs.push({
                             id: truckId,
                             docId: doc.id,
                             cycleUnits: cycleUnits,
@@ -1078,8 +1180,20 @@ function openDashboardModal() {
                             legacyImages: data.images || {}
                         });
                     });
-                    restoreNavigationPositionAfterFleetLoad();
-                    render();
+
+                    const oldUiSignature = getFleetUiSignature(rawFleetDocs);
+                    const newUiSignature = getFleetUiSignature(nextFleetDocs);
+                    const mainUiChanged = oldUiSignature !== newUiSignature;
+                    rawFleetDocs = nextFleetDocs;
+
+                    // O dashboard e seu cache acompanham todo snapshot, inclusive alterações feitas por outro usuário.
+                    // Isso não redesenha a tela principal quando só o resumo de fotos mudou.
+                    updateDashboardCacheFromCurrentFleet();
+
+                    if (mainUiChanged) {
+                        restoreNavigationPositionAfterFleetLoad();
+                        render();
+                    }
                 });
         }
 
