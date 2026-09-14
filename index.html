@@ -406,6 +406,70 @@
         let isAdmin = false;
         let activeTruckSlots = {};
 
+        // POSIÇÃO DE NAVEGAÇÃO POR LOGIN
+        // Cada usuário mantém, neste dispositivo/navegador, o último ano, unidade e veículo visitados.
+        const NAV_STATE_PREFIX = 'cb-frota-nav-state-v1:';
+        let pendingNavigationState = null;
+        let isRestoringNavigationState = false;
+
+        function getNavigationStateKey() {
+            const user = auth.currentUser;
+            return user ? `${NAV_STATE_PREFIX}${user.uid}` : null;
+        }
+
+        function loadNavigationStateForCurrentUser() {
+            const key = getNavigationStateKey();
+            if (!key) return null;
+            try {
+                const parsed = JSON.parse(localStorage.getItem(key) || 'null');
+                if (!parsed || typeof parsed !== 'object') return null;
+                return {
+                    year: String(parsed.year || ''),
+                    unit: String(parsed.unit || ''),
+                    vehicleId: String(parsed.vehicleId || '')
+                };
+            } catch (error) {
+                console.warn('Estado de navegação inválido:', error);
+                return null;
+            }
+        }
+
+        function saveNavigationState() {
+            if (isRestoringNavigationState || !auth.currentUser) return;
+            const key = getNavigationStateKey();
+            if (!key) return;
+            const list = getCurrentFilteredList();
+            const truck = list[currentIndex] || list[0];
+            if (!truck || !truck.id) return;
+
+            localStorage.setItem(key, JSON.stringify({
+                year: activeYear,
+                unit: activeUnit,
+                vehicleId: truck.id,
+                updatedAt: Date.now()
+            }));
+        }
+
+        function restoreNavigationPositionAfterFleetLoad() {
+            if (!pendingNavigationState) {
+                isRestoringNavigationState = false;
+                return;
+            }
+
+            const saved = pendingNavigationState;
+            if (ALL_UNITS.includes(saved.unit)) activeUnit = saved.unit;
+
+            currentIndex = 0;
+            if (saved.vehicleId) {
+                const list = getCurrentFilteredList();
+                const savedIndex = list.findIndex(truck => truck.id === saved.vehicleId);
+                if (savedIndex >= 0) currentIndex = savedIndex;
+            }
+
+            pendingNavigationState = null;
+            isRestoringNavigationState = false;
+        }
+
         const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
         function showToast(message, type = 'success') {
@@ -516,6 +580,8 @@
                 }
 
                 markUserActivity(true);
+                pendingNavigationState = loadNavigationStateForCurrentUser();
+                isRestoringNavigationState = true;
                 loginScreen.classList.add('hidden');
                 loadingScreen.classList.add('hidden');
                 listenToAuthorizedEditors();
@@ -1000,6 +1066,7 @@ function openDashboardModal() {
                             legacyImages: data.images || {}
                         });
                     });
+                    restoreNavigationPositionAfterFleetLoad();
                     render();
                 });
         }
@@ -1031,6 +1098,13 @@ function openDashboardModal() {
                     db.collection("settings").doc("years").set({ list: ["2025"] });
                     availableYears = ["2025"];
                 }
+
+                if (pendingNavigationState && availableYears.includes(pendingNavigationState.year)) {
+                    activeYear = pendingNavigationState.year;
+                } else if (!availableYears.includes(activeYear) && availableYears.length) {
+                    activeYear = availableYears[availableYears.length - 1];
+                }
+
                 loadDataFromFirebase();
             });
         }
@@ -1378,6 +1452,7 @@ function openDashboardModal() {
             
             renderSlotsGridOnly();
             document.getElementById('pagination-dots').innerHTML = list.map((_, i) => `<div class="h-1 rounded-full ${currentIndex === i ? 'w-4 bg-[#E30613]' : 'w-1 bg-slate-200'}"></div>`).join('');
+            saveNavigationState();
             lucide.createIcons();
         }
 
