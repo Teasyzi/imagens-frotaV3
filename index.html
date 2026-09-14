@@ -11,13 +11,14 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="manifest" href="manifest.json">
 
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./tailwind.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     
     <!-- SDKs do Firebase (Versão Compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="./fleet-plates.js"></script>
 
     <style>
         .custom-scrollbar::-webkit-scrollbar { width: 3px; }
@@ -70,8 +71,16 @@
     <!-- INPUT OCULTO PARA SELEÇÃO DE PASTA INTEIRA NO NAVEGADOR -->
     <input type="file" id="folder-batch-input" webkitdirectory directory multiple class="hidden" onchange="handleFolderBatchUpload(this)">
 
+    <!-- TELA DE CARREGAMENTO DA SESSÃO: evita exibir o login antes do Firebase restaurar a sessão -->
+    <div id="auth-loading-screen" class="fixed inset-0 z-[510] bg-slate-950 flex items-center justify-center">
+        <div class="flex flex-col items-center gap-3 text-white">
+            <i data-lucide="loader-circle" class="w-7 h-7 animate-spin text-[#E30613]"></i>
+            <span class="text-[10px] font-black uppercase tracking-[0.25em] text-slate-300">Carregando sessão</span>
+        </div>
+    </div>
+
     <!-- TELA DE LOGIN -->
-    <div id="app-login-screen" class="fixed inset-0 z-[500] login-bg-modern flex items-center justify-center p-4">
+    <div id="app-login-screen" class="hidden fixed inset-0 z-[500] login-bg-modern flex items-center justify-center p-4">
         <div class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#E30613]/20 blur-[120px] rounded-full pointer-events-none"></div>
         <div class="w-full max-w-md login-glass-card rounded-3xl p-8 flex flex-col items-center relative z-10 transition-all">
             <div class="flex flex-col items-center mb-6">
@@ -232,6 +241,10 @@
                 <i data-lucide="folder-input" class="w-4 h-4"></i>
             </button>
 
+            <button id="btn-sync-fleet-data" onclick="syncFleetDataForActiveYear()" class="hidden p-1.5 bg-black/20 hover:bg-white text-white hover:text-slate-900 rounded-md transition-all" title="Sincronizar placa, modelo, tipo e ano da planilha sem alterar outros dados">
+                <i data-lucide="badge-check" class="w-4 h-4"></i>
+            </button>
+
             <!-- BOTÃO EDITAR EXIBIDO APENAS PARA EDITORES AUTORIZADOS -->
             <button id="btn-adm-auth" onclick="toggleEditMode()" class="hidden flex items-center gap-2 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-3 py-1 rounded-md transition-all text-[10px] font-black uppercase">
                 <i data-lucide="lock" class="w-3.5 h-3.5"></i> <span id="adm-btn-text">Editar ✏️</span>
@@ -278,7 +291,17 @@
                         </div>
                         <div class="flex items-center justify-between w-full">
                             <div class="flex items-center gap-3">
-                                <h2 id="current-id" class="text-5xl font-black text-slate-900 tracking-tighter leading-none transition-all">---</h2>
+                                <div class="flex flex-col">
+                                    <h2 id="current-id" class="text-5xl font-black text-slate-900 tracking-tighter leading-none transition-all">---</h2>
+                                    <span id="current-plate" class="mt-1 text-[11px] font-black tracking-[0.22em] text-slate-500 uppercase">PLACA ---</span>
+                                    <div id="current-vehicle-details" class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[8px] font-bold uppercase tracking-wide text-slate-400">
+                                        <span id="current-model">MODELO ---</span>
+                                        <span class="text-slate-200">•</span>
+                                        <span id="current-type">TIPO ---</span>
+                                        <span class="text-slate-200">•</span>
+                                        <span id="current-vehicle-year">ANO ---</span>
+                                    </div>
+                                </div>
                                 <div class="flex flex-col gap-1 ml-2 border-l-2 border-slate-100 pl-3">
                                     <div id="current-unit-label" class="flex items-center gap-1.5 text-slate-500 text-[10px] font-black uppercase tracking-wider leading-none italic">
                                         <i data-lucide="map-pin" class="w-3 h-3 text-[#E30613]"></i> ---
@@ -288,6 +311,7 @@
                             </div>
                             
                             <div id="adm-fields-container" class="hidden flex-1 max-w-2xl ml-4 bg-slate-100 p-2 rounded-xl flex items-center gap-2">
+                                <input type="text" id="edit-plate" placeholder="Placa" maxlength="7" class="w-24 p-1.5 text-[10px] font-black uppercase border rounded bg-white">
                                 <input type="text" id="edit-transfer" placeholder="Texto Transferência" class="flex-1 p-1.5 text-[10px] font-bold border rounded bg-white">
                                 <input type="text" id="edit-notes" placeholder="Observações" class="flex-1 p-1.5 text-[10px] font-bold border rounded bg-white">
                                 <button onclick="saveTruckMetadata()" class="bg-green-600 hover:bg-green-700 text-white font-black text-[9px] px-3 py-2 rounded-lg uppercase tracking-wider shadow-sm shrink-0 flex items-center gap-1"><i data-lucide="save" class="w-3 h-3"></i> Salvar</button>
@@ -330,6 +354,32 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         const auth = firebase.auth();
+
+        // Mantém a sessão entre acessos, mas expira após 5 horas de inatividade.
+        const SESSION_IDLE_MS = 5 * 60 * 60 * 1000;
+        const LAST_ACTIVITY_KEY = 'cb-frota-last-activity';
+        let lastActivityWrite = 0;
+
+        auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(err => {
+            console.warn('Não foi possível configurar persistência local:', err);
+        });
+
+        function getLastActivity() {
+            const value = Number(localStorage.getItem(LAST_ACTIVITY_KEY) || 0);
+            return Number.isFinite(value) ? value : 0;
+        }
+
+        function markUserActivity(force = false) {
+            if (!auth.currentUser) return;
+            const now = Date.now();
+            if (!force && now - lastActivityWrite < 60000) return;
+            lastActivityWrite = now;
+            localStorage.setItem(LAST_ACTIVITY_KEY, String(now));
+        }
+
+        ['click', 'keydown', 'touchstart', 'mousemove'].forEach(eventName => {
+            window.addEventListener(eventName, () => markUserActivity(false), { passive: true });
+        });
 
         db.enablePersistence({ synchronizeTabs: true }).catch(err => {
             console.log("Aviso de persistência offline:", err.code);
@@ -407,6 +457,7 @@
         }
 
         function handleSignOut() {
+            localStorage.removeItem(LAST_ACTIVITY_KEY);
             auth.signOut();
             isAdmin = false;
             showToast("Você saiu da aplicação.");
@@ -450,13 +501,27 @@
             lucide.createIcons();
         }
 
-        auth.onAuthStateChanged(user => {
+        auth.onAuthStateChanged(async user => {
             const loginScreen = document.getElementById('app-login-screen');
+            const loadingScreen = document.getElementById('auth-loading-screen');
+
             if (user) {
+                const lastActivity = getLastActivity();
+                const sessionExpired = lastActivity > 0 && (Date.now() - lastActivity) > SESSION_IDLE_MS;
+
+                if (sessionExpired) {
+                    localStorage.removeItem(LAST_ACTIVITY_KEY);
+                    await auth.signOut();
+                    return;
+                }
+
+                markUserActivity(true);
                 loginScreen.classList.add('hidden');
+                loadingScreen.classList.add('hidden');
                 listenToAuthorizedEditors();
                 loadYearsList();
             } else {
+                loadingScreen.classList.add('hidden');
                 loginScreen.classList.remove('hidden');
                 isAdmin = false;
                 if (unsubscribeFleet) unsubscribeFleet();
@@ -524,6 +589,7 @@
                 document.getElementById('btn-add-truck').classList.remove('hidden');
                 document.getElementById('btn-add-year').classList.remove('hidden');
                 document.getElementById('btn-batch-import').classList.remove('hidden');
+                document.getElementById('btn-sync-fleet-data').classList.remove('hidden');
                 showToast("Modo de edição ativado!");
             } else {
                 document.getElementById('adm-btn-text').innerText = "Editar ✏️";
@@ -531,6 +597,7 @@
                 document.getElementById('btn-add-truck').classList.add('hidden');
                 document.getElementById('btn-add-year').classList.add('hidden');
                 document.getElementById('btn-batch-import').classList.add('hidden');
+                document.getElementById('btn-sync-fleet-data').classList.add('hidden');
                 showToast("Modo edição desativado.");
             }
             render();
@@ -612,14 +679,18 @@
                             const slotDocId = `c${cicloIdx}_s${slotNum}`;
                             await truckRef.collection('slots').doc(slotDocId).set({
                                 base64: finalBase64,
+                                year: activeYear,
+                                cycleIdx: cicloIdx,
+                                truckDocId: docId,
                                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                            });
+                            }, { merge: true });
 
                             processedCount++;
                             console.log(`[${processedCount}] Foto salva: Veículo ${truckId} | Ciclo ${cicloIdx + 1} | Slot ${slotNum}`);
 
                             await delay(120);
                         }
+                        await refreshTruckPhotoSummary(docId);
                     }
                 } catch (err) {
                     console.error(`Erro ao importar fotos do veículo ${truckId}:`, err);
@@ -635,81 +706,70 @@
         }
 
         // DASHBOARD CORRIGIDO: LÊ AS FOTOS DIRETAMENTE DO BANCO DE DADOS
-async function openDashboardModal() {
-    document.getElementById('dashboard-modal').classList.remove('hidden');
-    document.getElementById('dash-year-label').innerText = activeYear;
+function buildPhotoSummaryFromSlotKeys(slotKeys = [], legacyImages = {}) {
+    const keySet = new Set(slotKeys);
+    const cycles = [false, false, false];
+    for (let cycleIdx = 0; cycleIdx < 3; cycleIdx++) {
+        cycles[cycleIdx] = [1, 2, 3, 4].some(slotIdx => {
+            const key = `c${cycleIdx}_s${slotIdx}`;
+            return keySet.has(key) || Boolean(legacyImages && legacyImages[key]);
+        });
+    }
+    return { cycles, updatedAtMs: Date.now() };
+}
 
+async function refreshTruckPhotoSummary(truckDocId) {
+    if (!truckDocId) return null;
+    try {
+        const truck = rawFleetDocs.find(t => t.docId === truckDocId);
+        const snapshot = await db.collection('fleet').doc(truckDocId).collection('slots').get();
+        const summary = buildPhotoSummaryFromSlotKeys(snapshot.docs.map(doc => doc.id), truck ? truck.legacyImages : {});
+        await db.collection('fleet').doc(truckDocId).set({ photoSummary: summary }, { merge: true });
+        if (truck) truck.photoSummary = summary;
+        return summary;
+    } catch (error) {
+        console.warn('Falha ao atualizar resumo de fotos:', truckDocId, error);
+        return null;
+    }
+}
+
+function truckHasPhotoInCycle(truck, cycleIdx) {
+    if (truck.photoSummary && Array.isArray(truck.photoSummary.cycles)) {
+        return Boolean(truck.photoSummary.cycles[cycleIdx]);
+    }
+    return [1, 2, 3, 4].some(slotIdx => Boolean(truck.legacyImages && truck.legacyImages[`c${cycleIdx}_s${slotIdx}`]));
+}
+
+function renderDashboardStats() {
     const totalTrucks = rawFleetDocs.length;
     const notesTrucks = rawFleetDocs.filter(t => t.notes || t.transfer).length;
-
     document.getElementById('dash-total-trucks').innerText = totalTrucks;
     document.getElementById('dash-notes-trucks').innerText = notesTrucks;
 
-    // Busca todos os slots de fotos gravados no Firestore para o ano atual
-    const slotsSnapshot = await db.collectionGroup("slots").get().catch(() => null);
-    
-    let imagesMap = {};
-    if (slotsSnapshot) {
-        slotsSnapshot.forEach(doc => {
-            const pathSegments = doc.ref.path.split('/');
-            const truckDocId = pathSegments[1]; // Ex: "2025_158"
-            const slotDocId = doc.id; // Ex: "c0_s1"
-
-            // Verifica se o documento do slot pertence ao ano ativo selecionado
-            if (truckDocId.startsWith(activeYear)) {
-                if (!imagesMap[truckDocId]) imagesMap[truckDocId] = {};
-                imagesMap[truckDocId][slotDocId] = true;
-            }
-        });
-    }
-
-    let cycleStats = [
-        { totalActive: 0, withPhoto: 0, units: {} },
-        { totalActive: 0, withPhoto: 0, units: {} },
-        { totalActive: 0, withPhoto: 0, units: {} }
-    ];
-
-    ALL_UNITS.forEach(u => {
-        cycleStats[0].units[u] = { active: 0, withPhoto: 0 };
-        cycleStats[1].units[u] = { active: 0, withPhoto: 0 };
-        cycleStats[2].units[u] = { active: 0, withPhoto: 0 };
-    });
+    const cycleStats = [0, 1, 2].map(() => ({ totalActive: 0, withPhoto: 0, units: {} }));
+    ALL_UNITS.forEach(unit => cycleStats.forEach(cycle => cycle.units[unit] = { active: 0, withPhoto: 0 }));
 
     rawFleetDocs.forEach(truck => {
         if (!truck.cycleUnits) return;
-
         truck.cycleUnits.forEach((assignedUnit, cycleIdx) => {
-            if (assignedUnit && ALL_UNITS.includes(assignedUnit)) {
-                cycleStats[cycleIdx].totalActive++;
-                cycleStats[cycleIdx].units[assignedUnit].active++;
-
-                const truckSlots = imagesMap[truck.docId] || {};
-                
-                // Critério: Possui pelo menos 1 foto enviada (slot 1, 2, 3 ou 4) neste ciclo
-                const hasAtLeastOnePhoto = [1, 2, 3, 4].some(s => 
-                    truckSlots[`c${cycleIdx}_s${s}`] || 
-                    (truck.legacyImages && truck.legacyImages[`c${cycleIdx}_s${s}`])
-                );
-
-                if (hasAtLeastOnePhoto) {
-                    cycleStats[cycleIdx].withPhoto++;
-                    cycleStats[cycleIdx].units[assignedUnit].withPhoto++;
-                }
+            if (!assignedUnit || !ALL_UNITS.includes(assignedUnit)) return;
+            cycleStats[cycleIdx].totalActive++;
+            cycleStats[cycleIdx].units[assignedUnit].active++;
+            if (truckHasPhotoInCycle(truck, cycleIdx)) {
+                cycleStats[cycleIdx].withPhoto++;
+                cycleStats[cycleIdx].units[assignedUnit].withPhoto++;
             }
         });
     });
 
-    const globalActive = cycleStats.reduce((sum, c) => sum + c.totalActive, 0);
-    const globalWithPhoto = cycleStats.reduce((sum, c) => sum + c.withPhoto, 0);
+    const globalActive = cycleStats.reduce((sum, cycle) => sum + cycle.totalActive, 0);
+    const globalWithPhoto = cycleStats.reduce((sum, cycle) => sum + cycle.withPhoto, 0);
     const globalPercent = globalActive > 0 ? Math.round((globalWithPhoto / globalActive) * 100) : 0;
-
     document.getElementById('dash-photo-progress').innerText = `${globalPercent}%`;
 
-    const cyclesBreakdownContainer = document.getElementById('dash-cycles-breakdown');
-    cyclesBreakdownContainer.innerHTML = [0, 1, 2].map(cycleIdx => {
+    document.getElementById('dash-cycles-breakdown').innerHTML = [0, 1, 2].map(cycleIdx => {
         const stats = cycleStats[cycleIdx];
         const cyclePercent = stats.totalActive > 0 ? Math.round((stats.withPhoto / stats.totalActive) * 100) : 0;
-
         return `
             <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col gap-3">
                 <div class="border-b pb-2 flex justify-between items-center">
@@ -717,38 +777,53 @@ async function openDashboardModal() {
                         <span class="text-xs font-black text-slate-800 uppercase tracking-wider">${cycleInfo[cycleIdx].label}</span>
                         <span class="text-[9px] font-bold text-slate-400 italic block">${cycleInfo[cycleIdx].range}</span>
                     </div>
-                    <span class="text-xs font-black whitespace-nowrap ${cyclePercent === 100 ? 'text-emerald-600 bg-emerald-50' : 'text-[#E30613] bg-red-50'} px-2 py-1 rounded-lg border border-slate-200">
-                        ${cyclePercent}% Progresso
-                    </span>
+                    <span class="text-xs font-black whitespace-nowrap ${cyclePercent === 100 ? 'text-emerald-600 bg-emerald-50' : 'text-[#E30613] bg-red-50'} px-2 py-1 rounded-lg border border-slate-200">${cyclePercent}% Progresso</span>
                 </div>
-                
                 <div class="space-y-2.5">
                     ${ALL_UNITS.map(unit => {
                         const unitData = stats.units[unit];
                         const activeCount = unitData.active;
                         const photoCount = unitData.withPhoto;
                         const unitPercent = activeCount > 0 ? Math.round((photoCount / activeCount) * 100) : 0;
-
                         return `
                             <div>
                                 <div class="flex justify-between items-center text-[9px] font-bold text-slate-600 mb-0.5">
                                     <span>${unit}</span>
-                                    <span class="font-black ${unitPercent === 100 ? 'text-emerald-600' : 'text-slate-800'}">
-                                        ${photoCount}/${activeCount} veíq. (${unitPercent}%)
-                                    </span>
+                                    <span class="font-black ${unitPercent === 100 ? 'text-emerald-600' : 'text-slate-800'}">${photoCount}/${activeCount} veíq. (${unitPercent}%)</span>
                                 </div>
                                 <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
                                     <div class="${unitPercent === 100 ? 'bg-emerald-500' : 'bg-[#E30613]'} h-full" style="width: ${unitPercent}%"></div>
                                 </div>
-                            </div>
-                        `;
+                            </div>`;
                     }).join('')}
                 </div>
-            </div>
-        `;
+            </div>`;
     }).join('');
-
     lucide.createIcons();
+}
+
+async function hydrateMissingDashboardSummaries() {
+    const missing = rawFleetDocs.filter(truck => !truck.photoSummary);
+    if (!missing.length) return;
+
+    const concurrency = 4;
+    let cursor = 0;
+    async function worker() {
+        while (cursor < missing.length) {
+            const truck = missing[cursor++];
+            await refreshTruckPhotoSummary(truck.docId);
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(concurrency, missing.length) }, worker));
+    if (!document.getElementById('dashboard-modal').classList.contains('hidden')) renderDashboardStats();
+}
+
+function openDashboardModal() {
+    document.getElementById('dashboard-modal').classList.remove('hidden');
+    document.getElementById('dash-year-label').innerText = activeYear;
+    // Renderiza imediatamente usando resumos já carregados. O backfill roda em segundo plano e não bloqueia a abertura.
+    renderDashboardStats();
+    hydrateMissingDashboardSummaries();
 }
 
         function closeDashboardModal() {
@@ -908,13 +983,20 @@ async function openDashboardModal() {
                             ];
                         }
 
+                        const truckId = doc.id.split("_")[1] || doc.id;
+                        const spreadsheetData = (window.FLEET_DATA_MAP && window.FLEET_DATA_MAP[truckId]) || {};
                         rawFleetDocs.push({
-                            id: doc.id.split("_")[1] || doc.id,
+                            id: truckId,
                             docId: doc.id,
                             cycleUnits: cycleUnits,
                             active: data.active || [true, true, true],
                             transfer: data.transfer || "",
                             notes: data.notes || "",
+                            plate: data.plate || spreadsheetData.plate || "",
+                            model: data.model || spreadsheetData.model || "",
+                            type: data.type || spreadsheetData.type || "",
+                            vehicleYear: data.vehicleYear || spreadsheetData.year || "",
+                            photoSummary: data.photoSummary || null,
                             legacyImages: data.images || {}
                         });
                     });
@@ -935,6 +1017,8 @@ async function openDashboardModal() {
                     snapshot.forEach(doc => {
                         activeTruckSlots[doc.id] = doc.data().url || doc.data().base64;
                     });
+                    const currentTruck = rawFleetDocs.find(t => t.docId === truckDocId);
+                    if (currentTruck) currentTruck.photoSummary = buildPhotoSummaryFromSlotKeys(Object.keys(activeTruckSlots), currentTruck.legacyImages);
                     renderSlotsGridOnly();
                 });
         }
@@ -949,6 +1033,65 @@ async function openDashboardModal() {
                 }
                 loadDataFromFirebase();
             });
+        }
+
+        async function syncFleetDataForActiveYear() {
+            if (!isAdmin) return;
+            const fleetMap = window.FLEET_DATA_MAP || {};
+            const entries = Object.entries(fleetMap);
+            if (!entries.length) {
+                showToast("Dados da frota não encontrados.", "error");
+                return;
+            }
+
+            if (!confirm(`Sincronizar placa, modelo, tipo e ano da planilha nos veículos de ${activeYear}? Nenhum outro campo será alterado.`)) return;
+
+            try {
+                const snapshot = await db.collection('fleet').where('year', '==', activeYear).get();
+                let updated = 0;
+                let ignored = 0;
+                let batch = db.batch();
+                let batchSize = 0;
+                const commits = [];
+
+                for (const doc of snapshot.docs) {
+                    const truckId = doc.id.split('_')[1] || doc.id;
+                    const info = fleetMap[truckId];
+                    if (!info) { ignored++; continue; }
+
+                    const current = doc.data();
+                    const payload = {
+                        plate: info.plate || "",
+                        model: info.model || "",
+                        type: info.type || "",
+                        vehicleYear: info.year || ""
+                    };
+
+                    const isSame =
+                        (current.plate || '').toUpperCase() === payload.plate.toUpperCase() &&
+                        (current.model || '') === payload.model &&
+                        (current.type || '') === payload.type &&
+                        String(current.vehicleYear || '') === String(payload.vehicleYear || '');
+                    if (isSame) continue;
+
+                    batch.set(doc.ref, payload, { merge: true });
+                    batchSize++;
+                    updated++;
+
+                    if (batchSize >= 450) {
+                        commits.push(batch.commit());
+                        batch = db.batch();
+                        batchSize = 0;
+                    }
+                }
+
+                if (batchSize > 0) commits.push(batch.commit());
+                await Promise.all(commits);
+                showToast(`Dados da frota sincronizados: ${updated} atualizados${ignored ? `, ${ignored} sem correspondência` : ''}.`);
+            } catch (error) {
+                console.error('Erro ao sincronizar dados da frota:', error);
+                showToast('Erro ao sincronizar dados da frota.', 'error');
+            }
         }
 
         async function addNewYear() {
@@ -976,7 +1119,12 @@ async function openDashboardModal() {
                             cycleUnits: originalData.cycleUnits || [originalData.unit, originalData.unit, originalData.unit],
                             active: originalData.active || [true, true, true],
                             transfer: originalData.transfer || "",
-                            notes: originalData.notes || ""
+                            notes: originalData.notes || "",
+                            plate: originalData.plate || (window.FLEET_DATA_MAP && window.FLEET_DATA_MAP[truckId]?.plate) || "",
+                            model: originalData.model || (window.FLEET_DATA_MAP && window.FLEET_DATA_MAP[truckId]?.model) || "",
+                            type: originalData.type || (window.FLEET_DATA_MAP && window.FLEET_DATA_MAP[truckId]?.type) || "",
+                            vehicleYear: originalData.vehicleYear || (window.FLEET_DATA_MAP && window.FLEET_DATA_MAP[truckId]?.year) || "",
+                            photoSummary: originalData.photoSummary || null
                         });
                     }
                 } catch (err) { showToast("Erro ao clonar dados", "error"); }
@@ -1004,7 +1152,12 @@ async function openDashboardModal() {
                 cycleUnits: [activeUnit, activeUnit, activeUnit],
                 active: [true, true, true],
                 transfer: "",
-                notes: ""
+                notes: "",
+                plate: (window.FLEET_DATA_MAP && window.FLEET_DATA_MAP[id]?.plate) || "",
+                model: (window.FLEET_DATA_MAP && window.FLEET_DATA_MAP[id]?.model) || "",
+                type: (window.FLEET_DATA_MAP && window.FLEET_DATA_MAP[id]?.type) || "",
+                vehicleYear: (window.FLEET_DATA_MAP && window.FLEET_DATA_MAP[id]?.year) || "",
+                photoSummary: null
             });
             await logAuditAction(fullDocId, `Veículo ${id} cadastrado no sistema (${activeYear}).`);
             showToast(`Veículo ${id} adicionado!`);
@@ -1015,15 +1168,17 @@ async function openDashboardModal() {
             const truck = list[currentIndex];
             if (!truck) return;
 
+            const newPlate = document.getElementById('edit-plate').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
             const newTransfer = document.getElementById('edit-transfer').value;
             const newNotes = document.getElementById('edit-notes').value;
 
             await db.collection("fleet").doc(truck.docId).update({
+                plate: newPlate,
                 transfer: newTransfer,
                 notes: newNotes
             });
 
-            await logAuditAction(truck.docId, `Atualizou dados (Transf: "${newTransfer}", Obs: "${newNotes}")`);
+            await logAuditAction(truck.docId, `Atualizou dados (Placa: "${newPlate}", Transf: "${newTransfer}", Obs: "${newNotes}")`);
             showToast("Informações salvas!");
         }
 
@@ -1092,8 +1247,12 @@ async function openDashboardModal() {
                 
                 await db.collection("fleet").doc(truckDocId).collection("slots").doc(slotDocId).set({
                     base64: finalBase64,
+                    year: activeYear,
+                    cycleIdx: cycleIdx,
+                    truckDocId: truckDocId,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
+                }, { merge: true });
+                await refreshTruckPhotoSummary(truckDocId);
 
                 await logAuditAction(truckDocId, `Adicionou/Atualizou foto no Ciclo ${cycleIdx + 1}, Foto ${slotIdx} (${activeYear})`);
                 
@@ -1127,6 +1286,7 @@ async function openDashboardModal() {
                 await db.collection("fleet").doc(truckDocId).update({
                     [imageKey]: firebase.firestore.FieldValue.delete()
                 }).catch(() => {});
+                await refreshTruckPhotoSummary(truckDocId);
 
                 await logAuditAction(truckDocId, `Removeu a foto do Ciclo ${cycleIdx + 1}, Foto ${slotIdx}`);
                 showToast("Imagem removida!");
@@ -1165,7 +1325,8 @@ async function openDashboardModal() {
 
         function getCurrentFilteredList() {
             return rawFleetDocs.filter(truck => {
-                const matchesSearch = truck.id.includes(searchTerm);
+                const normalizedSearch = searchTerm.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                const matchesSearch = truck.id.includes(searchTerm) || (truck.plate || '').toUpperCase().includes(normalizedSearch);
                 const hasCycleInUnit = truck.cycleUnits && truck.cycleUnits.includes(activeUnit);
                 return matchesSearch && hasCycleInUnit;
             }).sort((a, b) => parseInt(a.id) - parseInt(b.id));
@@ -1183,6 +1344,7 @@ async function openDashboardModal() {
             }
 
             if (isAdmin && list.length > 0) {
+                document.getElementById('edit-plate').value = truck.plate || "";
                 document.getElementById('edit-transfer').value = truck.transfer || "";
                 document.getElementById('edit-notes').value = truck.notes || "";
             }
@@ -1202,6 +1364,10 @@ async function openDashboardModal() {
             truckList.innerHTML = list.map((t, i) => `<button onclick="setStep(${i})" class="w-full group flex flex-col items-center p-2.5 rounded-xl transition-all duration-200 ${truck.id === t.id ? 'bg-[#E30613] text-white shadow-lg scale-105' : 'hover:bg-white text-slate-400'}"><span class="text-[11px] font-black">${t.id}</span></button>`).join('');
             
             document.getElementById('current-id').innerText = truck.id;
+            document.getElementById('current-plate').innerText = `PLACA ${truck.plate || '---'}`;
+            document.getElementById('current-model').innerText = `MODELO ${truck.model || '---'}`;
+            document.getElementById('current-type').innerText = `TIPO ${truck.type || '---'}`;
+            document.getElementById('current-vehicle-year').innerText = `ANO ${truck.vehicleYear || '---'}`;
             document.getElementById('current-unit-label').innerText = activeUnit;
             document.getElementById('page-indicator').innerText = `${list.length > 0 ? currentIndex + 1 : 0} de ${list.length}`;
             
@@ -1295,11 +1461,14 @@ async function openDashboardModal() {
         document.getElementById('search-input').oninput = (e) => {
             const val = e.target.value.trim(); searchTerm = val; currentIndex = 0;
             if (val.length >= 2) { 
-                for (const u of ALL_UNITS) { 
-                    const idx = rawFleetDocs.filter(t => t.id.includes(val) && t.cycleUnits && t.cycleUnits.includes(u))
-                        .sort((a, b) => parseInt(a.id) - parseInt(b.id))
-                        .findIndex(t => t.id === val);
-                    if (idx !== -1) { activeUnit = u; currentIndex = idx; render(); return; } 
+                const normalizedVal = val.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                for (const u of ALL_UNITS) {
+                    const unitList = rawFleetDocs.filter(t => {
+                        const matches = t.id.includes(val) || (t.plate || '').toUpperCase().includes(normalizedVal);
+                        return matches && t.cycleUnits && t.cycleUnits.includes(u);
+                    }).sort((a, b) => parseInt(a.id) - parseInt(b.id));
+                    const exactIdx = unitList.findIndex(t => t.id === val || (t.plate || '').toUpperCase() === normalizedVal);
+                    if (exactIdx !== -1) { activeUnit = u; currentIndex = exactIdx; render(); return; }
                 } 
             }
             render();
