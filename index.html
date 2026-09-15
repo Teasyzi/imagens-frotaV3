@@ -66,18 +66,6 @@
             transform: translateY(-1px);
         }
     
-        /* Marca d'água visual: sobreposição reversível, não altera o arquivo da foto. */
-        .fleet-photo-wrap { position: relative; overflow: hidden; }
-        *:has(> .fleet-watermark) { position: relative; overflow: hidden; }
-        .fleet-watermark {
-            position: absolute; inset: 0; z-index: 20; pointer-events: none;
-            display: flex; align-items: center; justify-content: center;
-        }
-        .fleet-watermark img {
-            width: 44%; max-width: 180px; height: auto; object-fit: contain;
-            opacity: .22; filter: grayscale(1); transform: rotate(-18deg);
-            user-select: none; -webkit-user-drag: none;
-        }
 
     </style>
 </head>
@@ -251,19 +239,6 @@
             <button onclick="openDashboardModal()" class="flex items-center gap-1.5 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-2.5 py-1 rounded-md transition-all text-[10px] font-black uppercase" title="Ver estatísticas da frota">
                 <i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i> Dashboard
             </button>
-            <div class="relative">
-                <button id="watermark-toggle-btn" onclick="toggleWatermarkMenu(event)" class="flex items-center gap-1.5 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-2.5 py-1 rounded-md transition-all text-[10px] font-black uppercase" title="Configurar marca d'água por ciclo">
-                    <i data-lucide="stamp" class="w-3.5 h-3.5"></i> Marca
-                </button>
-                <div id="watermark-menu" onclick="event.stopPropagation()" class="hidden absolute right-0 top-full mt-2 z-[90] w-48 rounded-xl bg-white border border-slate-200 shadow-xl p-3 text-slate-700">
-                    <p class="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-2">Marca d'água</p>
-                    <label class="flex items-center justify-between gap-3 py-1.5 cursor-pointer text-[11px] font-bold"><span>1º Ciclo</span><input id="wm-cycle-0" type="checkbox" onchange="setCycleWatermark(0, this.checked)" class="w-4 h-4 accent-[#E30613]"></label>
-                    <label class="flex items-center justify-between gap-3 py-1.5 cursor-pointer text-[11px] font-bold"><span>2º Ciclo</span><input id="wm-cycle-1" type="checkbox" onchange="setCycleWatermark(1, this.checked)" class="w-4 h-4 accent-[#E30613]"></label>
-                    <label class="flex items-center justify-between gap-3 py-1.5 cursor-pointer text-[11px] font-bold"><span>3º Ciclo</span><input id="wm-cycle-2" type="checkbox" onchange="setCycleWatermark(2, this.checked)" class="w-4 h-4 accent-[#E30613]"></label>
-                    <p class="text-[8px] leading-tight text-slate-400 mt-2 pt-2 border-t border-slate-100">A foto original não é alterada.</p>
-                </div>
-            </div>
-
             <!-- BOTÃO DISCRETO PARA IMPORTAR PASTA DE FOTOS DO COMPUTADOR (NO MODO EDIÇÃO) -->
             <button id="btn-batch-import" onclick="triggerFolderSelect()" class="hidden p-1.5 bg-black/20 hover:bg-white text-white hover:text-slate-900 rounded-md transition-all" title="Importar Fotos da Pasta (Apenas Fotos)">
                 <i data-lucide="folder-input" class="w-4 h-4"></i>
@@ -845,8 +820,6 @@
 
                     for (const [slotNum, file] of [...assignments.entries()].sort((a,b) => a[0]-b[0])) {
                         try {
-                            // A marca d'água agora é SOMENTE visual no site.
-                            // O arquivo salvo permanece limpo e reversível.
                             const finalBase64 = await compressImage(file);
                             const slotDocId = `c${cycleIdx}_s${slotNum}`;
 
@@ -1114,7 +1087,7 @@ function openDashboardModal() {
             document.getElementById('dashboard-modal').classList.add('hidden');
         }
 
-        // COMPRESSÃO E MARCA D'ÁGUA
+        // COMPRESSÃO DE IMAGEM
         function compressImage(file, maxWidth = 1000, quality = 0.75) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -1145,57 +1118,7 @@ function openDashboardModal() {
             });
         }
 
-        function addWatermarkToImage(file, unitName) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = (e) => {
-                    const img = new Image();
-                    img.src = e.target.result;
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        let width = img.width;
-                        let height = img.height;
-
-                        const maxWidth = 1000;
-                        if (width > maxWidth) {
-                            height = Math.round((height * maxWidth) / width);
-                            width = maxWidth;
-                        }
-
-                        canvas.width = width;
-                        canvas.height = height;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, width, height);
-
-                        const text = `${unitName} • ${new Date().toLocaleString('pt-BR')}`;
-                        const fontSize = Math.max(12, Math.round(width * 0.025));
-                        ctx.font = `bold ${fontSize}px sans-serif`;
-
-                        const textWidth = ctx.measureText(text).width;
-                        const padding = 12;
-                        const rectWidth = textWidth + (padding * 2);
-                        const rectHeight = fontSize + (padding * 1.5);
-                        const x = width - rectWidth - 15;
-                        const y = height - rectHeight - 15;
-
-                        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-                        ctx.beginPath();
-                        ctx.roundRect(x, y, rectWidth, rectHeight, 8);
-                        ctx.fill();
-
-                        ctx.fillStyle = '#FFFFFF';
-                        ctx.fillText(text, x + padding, y + fontSize + (padding / 2));
-
-                        resolve(canvas.toDataURL('image/jpeg', 0.8));
-                    };
-                    img.onerror = (err) => reject(err);
-                };
-                reader.onerror = (err) => reject(err);
-            });
-        }
-
-        // REGISTRO DE AUDITORIA NO FIRESTORE
+// REGISTRO DE AUDITORIA NO FIRESTORE
         async function logAuditAction(truckDocId, actionDescription) {
             try {
                 const userEmail = auth.currentUser ? auth.currentUser.email : "ADM Anônimo";
@@ -1558,7 +1481,7 @@ function openDashboardModal() {
                 let finalBase64 = "";
 
                 if (parseInt(activeYear) >= 2026) {
-                    finalBase64 = await addWatermarkToImage(file, activeUnit);
+                    finalBase64 = await compressImage(file, activeUnit);
                 } else {
                     finalBase64 = await compressImage(file);
                 }
@@ -1577,9 +1500,9 @@ function openDashboardModal() {
                 await logAuditAction(truckDocId, `Adicionou/Atualizou foto no Ciclo ${cycleIdx + 1}, Foto ${slotIdx} (${activeYear})`);
                 
                 if (parseInt(activeYear) >= 2026) {
-                    showToast("Imagem salva com marca d'água!");
+                    showToast("Imagem salva com sucesso!");
                 } else {
-                    showToast("Imagem salva sem marca d'água (Ano " + activeYear + ")!");
+                    showToast("Imagem salva com sucesso!");
                 }
             } catch (error) {
                 console.error("Erro no envio:", error);
@@ -1752,7 +1675,7 @@ function openDashboardModal() {
                                          ondrop="handleDrop(event, ${i}, ${s}, '${truck.docId}')"
                                          class="image-slot bg-slate-50 rounded-2xl border border-slate-200 relative group overflow-hidden ${canUpload ? 'border-blue-300 hover:bg-blue-50 cursor-pointer' : 'cursor-zoom-in'} flex items-center justify-center shadow-sm">
                                         
-                                        ${imgUrl ? `<img src="${imgUrl}" onload="handleImgLoad(this)" onerror="handleImgError(this)" onclick="openZoom('${imgUrl}')" class="opacity-0 max-w-full max-h-full object-contain z-10 transition-transform duration-300 group-hover:scale-105" alt="Foto da frota">${isCycleWatermarkEnabled(i) ? `<div class="fleet-watermark" data-watermark-cycle="${i}" aria-hidden="true"><img src="./logo.png" alt=""></div>` : ''}` : ''}
+                                        ${imgUrl ? `<img src="${imgUrl}" onload="handleImgLoad(this)" onerror="handleImgError(this)" onclick="openZoom('${imgUrl}')" class="opacity-0 max-w-full max-h-full object-contain z-10 transition-transform duration-300 group-hover:scale-105" alt="Foto da frota">` : ''}
                                         
                                         <i data-lucide="${canUpload ? 'upload-cloud' : 'image'}" class="img-placeholder-icon absolute w-5 h-5 ${canUpload ? 'text-blue-400' : 'text-slate-200'} z-0"></i>
                                         
@@ -1822,56 +1745,7 @@ function openDashboardModal() {
             });
         }
     
-const WATERMARK_CYCLES_KEY = 'cb-frota-watermark-cycles-v1';
 
-function getWatermarkCycles() {
-    try {
-        const saved = JSON.parse(localStorage.getItem(WATERMARK_CYCLES_KEY));
-        if (Array.isArray(saved) && saved.length === 3) return saved.map(Boolean);
-    } catch (_) {}
-    return [false, false, false];
-}
-
-function isCycleWatermarkEnabled(cycleIndex) {
-    return getWatermarkCycles()[cycleIndex] === true;
-}
-
-function applyFleetWatermarkPreference() {
-    const enabled = getWatermarkCycles();
-    enabled.forEach((checked, i) => {
-        const input = document.getElementById(`wm-cycle-${i}`);
-        if (input) input.checked = checked;
-    });
-    const btn = document.getElementById('watermark-toggle-btn');
-    if (btn) {
-        const total = enabled.filter(Boolean).length;
-        btn.title = total ? `Marca d'água ativa em ${total} ciclo(s)` : "Configurar marca d'água por ciclo";
-        btn.classList.toggle('ring-2', total > 0);
-        btn.classList.toggle('ring-white/50', total > 0);
-    }
-}
-
-function setCycleWatermark(cycleIndex, checked) {
-    const enabled = getWatermarkCycles();
-    enabled[cycleIndex] = !!checked;
-    localStorage.setItem(WATERMARK_CYCLES_KEY, JSON.stringify(enabled));
-    applyFleetWatermarkPreference();
-    render();
-}
-
-function toggleWatermarkMenu(event) {
-    if (event) event.stopPropagation();
-    const menu = document.getElementById('watermark-menu');
-    if (!menu) return;
-    menu.classList.toggle('hidden');
-    applyFleetWatermarkPreference();
-}
-
-document.addEventListener('click', () => {
-    const menu = document.getElementById('watermark-menu');
-    if (menu) menu.classList.add('hidden');
-});
-document.addEventListener('DOMContentLoaded', applyFleetWatermarkPreference);
 
 </script>
 </body>

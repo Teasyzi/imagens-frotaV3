@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cb-frota-v13';
+const CACHE_NAME = 'cb-frota-v14';
 
 // Instalação do Service Worker
 self.addEventListener('install', (event) => {
