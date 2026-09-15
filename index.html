@@ -989,19 +989,29 @@ function getDashboardSignature(stats) {
 function getDashboardProgressStyle(percent) {
     const value = Math.max(0, Math.min(100, Number(percent) || 0));
 
-    // Inspirado no Bar Gauge/Thresholds do Grafana:
-    // a barra tem UMA cor coerente com o valor atual, interpolada entre
-    // vermelho -> âmbar -> verde. A área não preenchida permanece neutra.
+    // Mantém o dashboard simples. Só a cor comunica o estágio do progresso.
+    // A transição é contínua, mas 90% ainda não parece "concluído":
+    // 0% vermelho -> 70% laranja -> 90% dourado -> 100% verde.
     let hue;
-    if (value < 90) {
-        hue = Math.round((value / 90) * 42);       // vermelho -> âmbar
+    if (value <= 70) {
+        hue = (value / 70) * 28;               // 0 -> 28
+    } else if (value <= 90) {
+        hue = 28 + ((value - 70) / 20) * 14;  // 28 -> 42
     } else {
-        hue = Math.round(42 + ((value - 90) / 10) * 78); // âmbar -> verde
+        hue = 42 + ((value - 90) / 10) * 78;  // 42 -> 120
     }
 
-    const barColor = `hsl(${hue} 76% 46%)`;
-    const textColor = `hsl(${hue} 68% 32%)`;
-    const softColor = `hsl(${hue} 80% 95%)`;
+    const barColor = `hsl(${Math.round(hue)} 76% 45%)`;
+    const textColor = value === 100
+        ? '#15803d'
+        : value >= 90
+            ? `hsl(${Math.round(hue)} 72% 34%)`
+            : '#334155';
+    const softColor = value === 100
+        ? '#f0fdf4'
+        : value >= 90
+            ? `hsl(${Math.round(hue)} 82% 95%)`
+            : '#f8fafc';
 
     return { value, barColor, textColor, softColor };
 }
@@ -1043,9 +1053,9 @@ function renderDashboardStats(stats = null, force = false) {
                             <div>
                                 <div class="flex justify-between items-center text-[9px] font-bold text-slate-600 mb-0.5">
                                     <span>${unit}</span>
-                                    <span class="font-black transition-colors duration-300" style="color: ${unitProgressStyle.textColor};">${photoCount}/${activeCount} no ciclo (${unitPercent}%) <span class="text-slate-400 font-bold">• frota ${fleetCount}</span></span>
+                                    <span class="font-black text-slate-800">${photoCount}/${activeCount} no ciclo <span class="transition-colors duration-300" style="color: ${unitProgressStyle.barColor};">(${unitPercent}%)</span> <span class="text-slate-400 font-bold">• frota ${fleetCount}</span></span>
                                 </div>
-                                <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                                <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
                                     <div class="h-full rounded-full transition-all duration-500" style="width: ${unitPercent}%; background-color: ${unitProgressStyle.barColor};"></div>
                                 </div>
                             </div>
