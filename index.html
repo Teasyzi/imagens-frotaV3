@@ -10,6 +10,8 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="./logo.png">
+    <link rel="shortcut icon" type="image/png" href="./logo.png">
 
     <link rel="stylesheet" href="./tailwind.css">
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -186,7 +188,7 @@
 
                 <div class="space-y-4">
                     <h4 class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                        <i data-lucide="map-pin" class="w-3.5 h-3.5 text-[#E30613]"></i> Progresso por Ciclo
+                        <i data-lucide="map-pin" class="w-3.5 h-3.5 text-[#E30613]"></i> Progresso por Ciclo <span class="normal-case tracking-normal font-bold text-slate-400">• “frota” = total único da unidade</span>
                     </h4>
                     <div id="dash-cycles-breakdown" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
                 </div>
@@ -218,8 +220,8 @@
 
     <header class="bg-[#E30613] text-white h-11 flex justify-between items-center px-6 shrink-0 z-30 shadow-md">
         <div class="flex items-center gap-3">
-            <div class="bg-white p-1 rounded shadow-sm text-[#E30613]">
-                <i data-lucide="truck" class="w-4 h-4 text-[#E30613]"></i>
+            <div class="bg-white h-8 w-12 px-1.5 py-1 rounded-md shadow-sm flex items-center justify-center overflow-hidden">
+                <img src="./logo.png" alt="Costa Brasil" class="w-full h-full object-contain" draggable="false">
             </div>
             <h1 class="text-[9px] sm:text-xs font-black uppercase tracking-widest text-white leading-none">CB DISTRIBUIDORA DE BEBIDAS</h1>
             
@@ -820,7 +822,7 @@ function truckHasPhotoInCycle(truck, cycleIdx) {
 }
 
 // CACHE + RENDERIZAÇÃO ESTÁVEL DO DASHBOARD
-const DASHBOARD_CACHE_PREFIX = 'cb-frota-dashboard-v2:';
+const DASHBOARD_CACHE_PREFIX = 'cb-frota-dashboard-v3:';
 let lastDashboardRenderSignature = '';
 
 function getDashboardCacheKey() {
@@ -832,6 +834,7 @@ function calculateDashboardStats() {
     const totalTrucks = rawFleetDocs.length;
     const notesTrucks = rawFleetDocs.filter(t => t.notes || t.transfer).length;
     const cycleStats = [0, 1, 2].map(() => ({ totalActive: 0, withPhoto: 0, units: {} }));
+    const unitFleetCounts = Object.fromEntries(ALL_UNITS.map(unit => [unit, 0]));
 
     ALL_UNITS.forEach(unit => cycleStats.forEach(cycle => {
         cycle.units[unit] = { active: 0, withPhoto: 0 };
@@ -839,6 +842,11 @@ function calculateDashboardStats() {
 
     rawFleetDocs.forEach(truck => {
         if (!truck.cycleUnits) return;
+
+        // Frota da unidade = veículo único que pertence à unidade em pelo menos um ciclo.
+        // Isso usa o mesmo conceito da navegação lateral e evita confundir 'frota da unidade' com 'ativos no ciclo'.
+        const uniqueTruckUnits = new Set(truck.cycleUnits.filter(unit => unit && ALL_UNITS.includes(unit)));
+        uniqueTruckUnits.forEach(unit => unitFleetCounts[unit]++);
         truck.cycleUnits.forEach((assignedUnit, cycleIdx) => {
             if (!assignedUnit || !ALL_UNITS.includes(assignedUnit)) return;
             cycleStats[cycleIdx].totalActive++;
@@ -854,10 +862,11 @@ function calculateDashboardStats() {
     const globalWithPhoto = cycleStats.reduce((sum, cycle) => sum + cycle.withPhoto, 0);
 
     return {
-        version: 2,
+        version: 3,
         year: String(activeYear),
         totalTrucks,
         notesTrucks,
+        unitFleetCounts,
         globalPercent: globalActive > 0 ? Math.round((globalWithPhoto / globalActive) * 100) : 0,
         cycles: cycleStats,
         savedAt: Date.now()
@@ -876,7 +885,7 @@ function saveDashboardCache(stats) {
 function loadDashboardCache() {
     try {
         const cached = JSON.parse(localStorage.getItem(getDashboardCacheKey()) || 'null');
-        if (!cached || cached.version !== 2 || String(cached.year) !== String(activeYear) || !Array.isArray(cached.cycles)) return null;
+        if (!cached || cached.version !== 3 || String(cached.year) !== String(activeYear) || !Array.isArray(cached.cycles)) return null;
         return cached;
     } catch (error) {
         console.warn('Cache do dashboard inválido:', error);
@@ -890,6 +899,7 @@ function getDashboardSignature(stats) {
         year: stats.year,
         totalTrucks: stats.totalTrucks,
         notesTrucks: stats.notesTrucks,
+        unitFleetCounts,
         globalPercent: stats.globalPercent,
         cycles: stats.cycles
     };
@@ -930,7 +940,7 @@ function renderDashboardStats(stats = null, force = false) {
                             <div>
                                 <div class="flex justify-between items-center text-[9px] font-bold text-slate-600 mb-0.5">
                                     <span>${unit}</span>
-                                    <span class="font-black ${unitPercent === 100 ? 'text-emerald-600' : 'text-slate-800'}">${photoCount}/${activeCount} veíq. (${unitPercent}%)</span>
+                                    <span class="font-black ${unitPercent === 100 ? 'text-emerald-600' : 'text-slate-800'}">${photoCount}/${activeCount} no ciclo (${unitPercent}%) <span class="text-slate-400 font-bold">• frota ${stats.unitFleetCounts?.[unit] ?? activeCount}</span></span>
                                 </div>
                                 <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
                                     <div class="${unitPercent === 100 ? 'bg-emerald-500' : 'bg-[#E30613]'} h-full transition-[width] duration-300" style="width: ${unitPercent}%"></div>
