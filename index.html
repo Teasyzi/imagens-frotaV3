@@ -989,14 +989,13 @@ function getDashboardSignature(stats) {
 function getDashboardProgressStyle(percent) {
     const value = Math.max(0, Math.min(100, Number(percent) || 0));
 
-    // Gradiente contínuo: 0% vermelho -> 50% âmbar -> 100% verde.
-    // HSL permite que cada ponto percentual tenha sua própria cor.
-    const hue = Math.round(value * 1.2); // 0 = vermelho, 60 = amarelo, 120 = verde
-    const barColor = `hsl(${hue} 78% 46%)`;
-    const textColor = `hsl(${hue} 72% 34%)`;
-    const softColor = `hsl(${hue} 85% 95%)`;
+    // Cor pontual para texto/badge. A linha usa um gradiente contínuo fixo,
+    // permitindo enxergar visualmente o caminho vermelho -> amarelo -> verde.
+    const hue = Math.round(value * 1.2);
+    const textColor = `hsl(${hue} 72% 32%)`;
+    const softColor = `hsl(${hue} 82% 94%)`;
 
-    return { value, barColor, textColor, softColor };
+    return { value, textColor, softColor };
 }
 
 function renderDashboardStats(stats = null, force = false) {
@@ -1022,7 +1021,10 @@ function renderDashboardStats(stats = null, force = false) {
                         <span class="text-xs font-black text-slate-800 uppercase tracking-wider">${cycleInfo[cycleIdx].label}</span>
                         <span class="text-[9px] font-bold text-slate-400 italic block">${cycleInfo[cycleIdx].range}</span>
                     </div>
-                    <span class="text-xs font-black whitespace-nowrap px-2 py-1 rounded-lg border border-slate-200 transition-colors duration-300" style="color: ${cycleProgressStyle.textColor}; background-color: ${cycleProgressStyle.softColor};">${cyclePercent}% Progresso</span>
+                    <span class="relative overflow-hidden text-xs font-black whitespace-nowrap px-2 py-1.5 rounded-lg border border-slate-200 transition-colors duration-300" style="color: ${cycleProgressStyle.textColor}; background-color: ${cycleProgressStyle.softColor};">
+                        ${cyclePercent}% Progresso
+                        <span class="absolute bottom-0 left-0 h-[3px] dashboard-progress-gradient transition-all duration-500" style="width: ${cyclePercent}%;"></span>
+                    </span>
                 </div>
                 <div class="space-y-2.5">
                     ${ALL_UNITS.map(unit => {
@@ -1038,8 +1040,12 @@ function renderDashboardStats(stats = null, force = false) {
                                     <span>${unit}</span>
                                     <span class="font-black transition-colors duration-300" style="color: ${unitProgressStyle.textColor};">${photoCount}/${activeCount} no ciclo (${unitPercent}%) <span class="text-slate-400 font-bold">• frota ${fleetCount}</span></span>
                                 </div>
-                                <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                                    <div class="h-full transition-all duration-500" style="width: ${unitPercent}%; background-color: ${unitProgressStyle.barColor};"></div>
+                                <div class="relative w-full bg-slate-200 h-2 rounded-full">
+                                    <div class="absolute inset-y-0 left-0 rounded-full overflow-hidden transition-all duration-500" style="width: ${unitPercent}%;">
+                                        <div class="h-full dashboard-progress-gradient" style="width: calc(100% * 100 / max(${unitPercent}, 1));"></div>
+                                    </div>
+                                    <div class="absolute top-1/2 -translate-y-1/2 w-[2px] h-3 bg-slate-500/45 rounded-full z-10" style="left: 90%;" title="Meta: 90%"></div>
+                                    ${unitPercent > 0 ? `<div class="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm z-20 transition-all duration-500" style="left: ${unitPercent}%; background-color: ${unitProgressStyle.textColor};"></div>` : ''}
                                 </div>
                             </div>`;
                     }).join('')}
