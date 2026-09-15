@@ -989,29 +989,34 @@ function getDashboardSignature(stats) {
 function getDashboardProgressStyle(percent) {
     const value = Math.max(0, Math.min(100, Number(percent) || 0));
 
-    // Mantém o dashboard simples. Só a cor comunica o estágio do progresso.
-    // A transição é contínua, mas 90% ainda não parece "concluído":
-    // 0% vermelho -> 70% laranja -> 90% dourado -> 100% verde.
+    // Escala contínua com duas dimensões visuais:
+    // 1) a tonalidade caminha do vermelho ao verde;
+    // 2) quanto maior o percentual, mais escura/sólida fica a cor.
+    // Isso torna 96, 97, 98, 99 e 100 perceptivelmente diferentes.
     let hue;
     if (value <= 70) {
-        hue = (value / 70) * 28;               // 0 -> 28
+        hue = (value / 70) * 28;
     } else if (value <= 90) {
-        hue = 28 + ((value - 70) / 20) * 14;  // 28 -> 42
+        hue = 28 + ((value - 70) / 20) * 14;
     } else {
-        hue = 42 + ((value - 90) / 10) * 78;  // 42 -> 120
+        hue = 42 + ((value - 90) / 10) * 78;
     }
 
-    const barColor = `hsl(${Math.round(hue)} 76% 45%)`;
-    const textColor = value === 100
-        ? '#15803d'
-        : value >= 90
-            ? `hsl(${Math.round(hue)} 72% 34%)`
-            : '#334155';
-    const softColor = value === 100
-        ? '#f0fdf4'
-        : value >= 90
-            ? `hsl(${Math.round(hue)} 82% 95%)`
-            : '#f8fafc';
+    let lightness;
+    if (value < 90) {
+        lightness = 50 - (value / 90) * 5;       // 50% -> 45%
+    } else {
+        lightness = 52 - ((value - 90) / 10) * 22; // 90%=52%, 100%=30%
+    }
+
+    const roundedHue = Math.round(hue);
+    const roundedLightness = Math.round(lightness);
+    const barColor = `hsl(${roundedHue} 76% ${roundedLightness}%)`;
+    const textColor = value >= 90
+        ? `hsl(${roundedHue} 72% ${Math.max(24, roundedLightness - 8)}%)`
+        : '#334155';
+    const softLightness = value >= 90 ? 95 : 98;
+    const softColor = `hsl(${roundedHue} 72% ${softLightness}%)`;
 
     return { value, barColor, textColor, softColor };
 }
