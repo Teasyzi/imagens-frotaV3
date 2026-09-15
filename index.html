@@ -70,15 +70,14 @@
         .fleet-photo-wrap { position: relative; overflow: hidden; }
         *:has(> .fleet-watermark) { position: relative; overflow: hidden; }
         .fleet-watermark {
-            position: absolute; inset: 0; z-index: 8; pointer-events: none;
+            position: absolute; inset: 0; z-index: 20; pointer-events: none;
             display: flex; align-items: center; justify-content: center;
-            opacity: .16; transform: rotate(-18deg);
         }
         .fleet-watermark img {
-            width: 42%; max-width: 180px; height: auto; object-fit: contain;
-            filter: grayscale(1); user-select: none; -webkit-user-drag: none;
+            width: 44%; max-width: 180px; height: auto; object-fit: contain;
+            opacity: .22; filter: grayscale(1); transform: rotate(-18deg);
+            user-select: none; -webkit-user-drag: none;
         }
-        body.hide-fleet-watermark .fleet-watermark { display: none !important; }
 
     </style>
 </head>
@@ -252,9 +251,18 @@
             <button onclick="openDashboardModal()" class="flex items-center gap-1.5 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-2.5 py-1 rounded-md transition-all text-[10px] font-black uppercase" title="Ver estatísticas da frota">
                 <i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i> Dashboard
             </button>
-            <button id="watermark-toggle-btn" onclick="toggleFleetWatermark()" class="flex items-center gap-1.5 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-2.5 py-1 rounded-md transition-all text-[10px] font-black uppercase" title="Ocultar marca d'água nas fotos">
-                <i data-lucide="stamp" class="w-3.5 h-3.5"></i> Marca
-            </button>
+            <div class="relative">
+                <button id="watermark-toggle-btn" onclick="toggleWatermarkMenu(event)" class="flex items-center gap-1.5 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-2.5 py-1 rounded-md transition-all text-[10px] font-black uppercase" title="Configurar marca d'água por ciclo">
+                    <i data-lucide="stamp" class="w-3.5 h-3.5"></i> Marca
+                </button>
+                <div id="watermark-menu" onclick="event.stopPropagation()" class="hidden absolute right-0 top-full mt-2 z-[90] w-48 rounded-xl bg-white border border-slate-200 shadow-xl p-3 text-slate-700">
+                    <p class="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-2">Marca d'água</p>
+                    <label class="flex items-center justify-between gap-3 py-1.5 cursor-pointer text-[11px] font-bold"><span>1º Ciclo</span><input id="wm-cycle-0" type="checkbox" onchange="setCycleWatermark(0, this.checked)" class="w-4 h-4 accent-[#E30613]"></label>
+                    <label class="flex items-center justify-between gap-3 py-1.5 cursor-pointer text-[11px] font-bold"><span>2º Ciclo</span><input id="wm-cycle-1" type="checkbox" onchange="setCycleWatermark(1, this.checked)" class="w-4 h-4 accent-[#E30613]"></label>
+                    <label class="flex items-center justify-between gap-3 py-1.5 cursor-pointer text-[11px] font-bold"><span>3º Ciclo</span><input id="wm-cycle-2" type="checkbox" onchange="setCycleWatermark(2, this.checked)" class="w-4 h-4 accent-[#E30613]"></label>
+                    <p class="text-[8px] leading-tight text-slate-400 mt-2 pt-2 border-t border-slate-100">A foto original não é alterada.</p>
+                </div>
+            </div>
 
             <!-- BOTÃO DISCRETO PARA IMPORTAR PASTA DE FOTOS DO COMPUTADOR (NO MODO EDIÇÃO) -->
             <button id="btn-batch-import" onclick="triggerFolderSelect()" class="hidden p-1.5 bg-black/20 hover:bg-white text-white hover:text-slate-900 rounded-md transition-all" title="Importar Fotos da Pasta (Apenas Fotos)">
@@ -742,86 +750,147 @@
         async function handleFolderBatchUpload(input) {
             const files = Array.from(input.files || []);
             if (files.length === 0) return;
+            if (!isAdmin) {
+                showToast("Ative o modo de edição para importar fotos.", "error");
+                return;
+            }
 
-            showToast("Iniciando importação flexível de imagens...", "success");
-            let processedCount = 0;
+            const imageFiles = files.filter(file => file.type.startsWith('image/'));
+            if (imageFiles.length === 0) {
+                showToast("A pasta selecionada não contém imagens.", "error");
+                return;
+            }
 
-            const imageFiles = files.filter(f => f.type.startsWith('image/'));
-            const imagensAgrupadas = {};
+            showToast(`Analisando ${imageFiles.length} imagens...`);
 
-            imageFiles.forEach(file => {
-                const pathParts = file.webkitRelativePath.split('/');
-                let cicloIdx = -1;
+            const grouped = new Map();
+            const ignored = [];
+            const currentFleetIds = new Set(rawFleetDocs.map(t => String(t.id)));
+
+            for (const file of imageFiles) {
+                const pathParts = (file.webkitRelativePath || file.name).split('/');
+                let cycleIdx = -1;
                 let truckId = "";
 
-                for (let p = 0; p < pathParts.length; p++) {
-                    const part = pathParts[p];
-                    if (cicloIdx === -1) cicloIdx = mapearCiclo(part);
-                    if (/^\d+$/.test(part.trim())) truckId = part.trim();
+                for (const rawPart of pathParts) {
+                    const part = rawPart.trim();
+                    if (cycleIdx === -1) cycleIdx = mapearCiclo(part);
+                    if (/^\d+$/.test(part)) truckId = part;
                 }
 
-                if (cicloIdx !== -1 && truckId) {
-                    const chave = `${cicloIdx}_${truckId}`;
-                    if (!imagensAgrupadas[chave]) imagensAgrupadas[chave] = [];
-                    imagensAgrupadas[chave].push(file);
+                if (cycleIdx === -1 || !truckId) {
+                    ignored.push(`${file.name}: pasta de ciclo/veículo não reconhecida`);
+                    continue;
                 }
-            });
+                if (!currentFleetIds.has(String(truckId))) {
+                    ignored.push(`${file.name}: veículo ${truckId} não existe em ${activeYear}`);
+                    continue;
+                }
 
-            for (const [chave, listaFotos] of Object.entries(imagensAgrupadas)) {
-                const [cicloIdxStr, truckId] = chave.split('_');
-                const cicloIdx = parseInt(cicloIdxStr);
+                const key = `${cycleIdx}_${truckId}`;
+                if (!grouped.has(key)) grouped.set(key, []);
+                grouped.get(key).push(file);
+            }
+
+            let imported = 0;
+            let failed = 0;
+            let excess = 0;
+            const affectedTrucks = new Set();
+
+            // A tela possui 4 slots por ciclo. Importamos no máximo 4 por veículo/ciclo,
+            // com nomes "slot1"..."slot4" tendo prioridade sobre a ordem alfabética.
+            for (const [key, groupFiles] of grouped.entries()) {
+                const [cycleIdxText, truckId] = key.split('_');
+                const cycleIdx = Number(cycleIdxText);
                 const docId = `${activeYear}_${truckId}`;
                 const truckRef = db.collection('fleet').doc(docId);
 
                 try {
                     const truckDoc = await truckRef.get();
+                    if (!truckDoc.exists) {
+                        ignored.push(`Veículo ${truckId}: cadastro não encontrado no banco`);
+                        continue;
+                    }
 
-                    if (truckDoc.exists) {
-                        listaFotos.sort((a, b) => a.name.localeCompare(b.name));
+                    const explicit = new Map();
+                    const automatic = [];
 
-                        for (let idx = 0; idx < Math.min(listaFotos.length, 4); idx++) {
-                            const file = listaFotos[idx];
-                            
-                            let slotNum = idx + 1;
-                            const matchSlot = file.name.toLowerCase().match(/slot\s*([1-4])/);
-                            if (matchSlot) {
-                                slotNum = parseInt(matchSlot[1]);
-                            }
-
-                            let finalBase64 = "";
-                            if (parseInt(activeYear) >= 2026) {
-                                const assignedUnit = truckDoc.data().cycleUnits ? truckDoc.data().cycleUnits[cicloIdx] : activeUnit;
-                                finalBase64 = await addWatermarkToImage(file, assignedUnit || activeUnit);
+                    groupFiles
+                        .slice()
+                        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
+                        .forEach(file => {
+                            const match = file.name.toLowerCase().match(/slot[\s_-]*([1-4])(?:\D|$)/);
+                            if (match) {
+                                const slot = Number(match[1]);
+                                // Se houver duas imagens pedindo o mesmo slot, mantém a primeira e
+                                // manda a outra para preenchimento automático de um slot livre.
+                                if (!explicit.has(slot)) explicit.set(slot, file);
+                                else automatic.push(file);
                             } else {
-                                finalBase64 = await compressImage(file);
+                                automatic.push(file);
                             }
+                        });
 
-                            const slotDocId = `c${cicloIdx}_s${slotNum}`;
+                    const assignments = new Map(explicit);
+                    const freeSlots = [1, 2, 3, 4].filter(slot => !assignments.has(slot));
+                    for (const file of automatic) {
+                        const slot = freeSlots.shift();
+                        if (!slot) {
+                            excess++;
+                            ignored.push(`${file.name}: excede os 4 slots do veículo ${truckId}, ciclo ${cycleIdx + 1}`);
+                            continue;
+                        }
+                        assignments.set(slot, file);
+                    }
+
+                    for (const [slotNum, file] of [...assignments.entries()].sort((a,b) => a[0]-b[0])) {
+                        try {
+                            // A marca d'água agora é SOMENTE visual no site.
+                            // O arquivo salvo permanece limpo e reversível.
+                            const finalBase64 = await compressImage(file);
+                            const slotDocId = `c${cycleIdx}_s${slotNum}`;
+
                             await truckRef.collection('slots').doc(slotDocId).set({
                                 base64: finalBase64,
                                 year: activeYear,
-                                cycleIdx: cicloIdx,
+                                cycleIdx,
                                 truckDocId: docId,
                                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                             }, { merge: true });
 
-                            processedCount++;
-                            console.log(`[${processedCount}] Foto salva: Veículo ${truckId} | Ciclo ${cicloIdx + 1} | Slot ${slotNum}`);
-
-                            await delay(120);
+                            imported++;
+                            affectedTrucks.add(docId);
+                            console.log(`[${imported}] Veículo ${truckId} | Ciclo ${cycleIdx + 1} | Slot ${slotNum}`);
+                        } catch (photoError) {
+                            failed++;
+                            console.error(`Falha na foto ${file.name}:`, photoError);
                         }
-                        await refreshTruckPhotoSummary(docId);
                     }
-                } catch (err) {
-                    console.error(`Erro ao importar fotos do veículo ${truckId}:`, err);
-                    await delay(1000);
+
+                    await refreshTruckPhotoSummary(docId);
+                } catch (error) {
+                    failed++;
+                    console.error(`Erro ao importar veículo ${truckId}:`, error);
                 }
             }
 
-            if (processedCount > 0) {
-                showToast(`Sucesso! ${processedCount} fotos importadas para a frota de ${activeYear}.`);
+            // Limpa o input para permitir selecionar a mesma pasta novamente.
+            input.value = '';
+
+            if (imported > 0) {
+                updateDashboardCacheFromCurrentFleet();
+                render();
+                const details = [
+                    `${imported} foto${imported === 1 ? '' : 's'} importada${imported === 1 ? '' : 's'}`,
+                    `${affectedTrucks.size} veículo${affectedTrucks.size === 1 ? '' : 's'}`,
+                    ignored.length ? `${ignored.length} ignorada${ignored.length === 1 ? '' : 's'}` : '',
+                    failed ? `${failed} erro${failed === 1 ? '' : 's'}` : ''
+                ].filter(Boolean).join(' • ');
+                showToast(details, failed ? "error" : "success");
+                if (ignored.length) console.warn("Arquivos ignorados na importação:", ignored);
             } else {
-                showToast("Nenhuma pasta de veículo cadastrado foi encontrada.", "error");
+                showToast(`Nenhuma foto importada${ignored.length ? ` • ${ignored.length} arquivo(s) ignorado(s)` : ''}.`, "error");
+                if (ignored.length) console.warn("Arquivos ignorados na importação:", ignored);
             }
         }
 
@@ -939,7 +1008,7 @@ function getDashboardSignature(stats) {
         year: stats.year,
         totalTrucks: stats.totalTrucks,
         notesTrucks: stats.notesTrucks,
-        unitFleetCounts,
+        unitFleetCounts: stats.unitFleetCounts || {},
         globalPercent: stats.globalPercent,
         cycles: stats.cycles
     };
@@ -1683,7 +1752,7 @@ function openDashboardModal() {
                                          ondrop="handleDrop(event, ${i}, ${s}, '${truck.docId}')"
                                          class="image-slot bg-slate-50 rounded-2xl border border-slate-200 relative group overflow-hidden ${canUpload ? 'border-blue-300 hover:bg-blue-50 cursor-pointer' : 'cursor-zoom-in'} flex items-center justify-center shadow-sm">
                                         
-                                        ${imgUrl ? `<img src="${imgUrl}" onload="handleImgLoad(this)" onerror="handleImgError(this)" onclick="openZoom('${imgUrl}')" class="opacity-0 max-w-full max-h-full object-contain z-10 transition-transform duration-300 group-hover:scale-105" alt="Foto da frota"><div class="fleet-watermark" aria-hidden="true"><img src="./logo.png" alt=""></div>` : ''}
+                                        ${imgUrl ? `<img src="${imgUrl}" onload="handleImgLoad(this)" onerror="handleImgError(this)" onclick="openZoom('${imgUrl}')" class="opacity-0 max-w-full max-h-full object-contain z-10 transition-transform duration-300 group-hover:scale-105" alt="Foto da frota">${isCycleWatermarkEnabled(i) ? `<div class="fleet-watermark" data-watermark-cycle="${i}" aria-hidden="true"><img src="./logo.png" alt=""></div>` : ''}` : ''}
                                         
                                         <i data-lucide="${canUpload ? 'upload-cloud' : 'image'}" class="img-placeholder-icon absolute w-5 h-5 ${canUpload ? 'text-blue-400' : 'text-slate-200'} z-0"></i>
                                         
@@ -1753,20 +1822,55 @@ function openDashboardModal() {
             });
         }
     
+const WATERMARK_CYCLES_KEY = 'cb-frota-watermark-cycles-v1';
+
+function getWatermarkCycles() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(WATERMARK_CYCLES_KEY));
+        if (Array.isArray(saved) && saved.length === 3) return saved.map(Boolean);
+    } catch (_) {}
+    return [false, false, false];
+}
+
+function isCycleWatermarkEnabled(cycleIndex) {
+    return getWatermarkCycles()[cycleIndex] === true;
+}
+
 function applyFleetWatermarkPreference() {
-    const hidden = localStorage.getItem('cb-frota-hide-watermark') === '1';
-    document.body.classList.toggle('hide-fleet-watermark', hidden);
+    const enabled = getWatermarkCycles();
+    enabled.forEach((checked, i) => {
+        const input = document.getElementById(`wm-cycle-${i}`);
+        if (input) input.checked = checked;
+    });
     const btn = document.getElementById('watermark-toggle-btn');
     if (btn) {
-        btn.title = hidden ? "Mostrar marca d'água nas fotos" : "Ocultar marca d'água nas fotos";
-        btn.classList.toggle('opacity-50', hidden);
+        const total = enabled.filter(Boolean).length;
+        btn.title = total ? `Marca d'água ativa em ${total} ciclo(s)` : "Configurar marca d'água por ciclo";
+        btn.classList.toggle('ring-2', total > 0);
+        btn.classList.toggle('ring-white/50', total > 0);
     }
 }
-function toggleFleetWatermark() {
-    const willHide = !document.body.classList.contains('hide-fleet-watermark');
-    localStorage.setItem('cb-frota-hide-watermark', willHide ? '1' : '0');
+
+function setCycleWatermark(cycleIndex, checked) {
+    const enabled = getWatermarkCycles();
+    enabled[cycleIndex] = !!checked;
+    localStorage.setItem(WATERMARK_CYCLES_KEY, JSON.stringify(enabled));
+    applyFleetWatermarkPreference();
+    render();
+}
+
+function toggleWatermarkMenu(event) {
+    if (event) event.stopPropagation();
+    const menu = document.getElementById('watermark-menu');
+    if (!menu) return;
+    menu.classList.toggle('hidden');
     applyFleetWatermarkPreference();
 }
+
+document.addEventListener('click', () => {
+    const menu = document.getElementById('watermark-menu');
+    if (menu) menu.classList.add('hidden');
+});
 document.addEventListener('DOMContentLoaded', applyFleetWatermarkPreference);
 
 </script>
