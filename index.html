@@ -1010,7 +1010,7 @@ function renderDashboardStats(stats = null, force = false) {
                         <span class="text-xs font-black text-slate-800 uppercase tracking-wider">${cycleInfo[cycleIdx].label}</span>
                         <span class="text-[9px] font-bold text-slate-400 italic block">${cycleInfo[cycleIdx].range}</span>
                     </div>
-                    <span class="text-xs font-black whitespace-nowrap ${cyclePercent === 100 ? 'text-emerald-600 bg-emerald-50' : 'text-[#E30613] bg-red-50'} px-2 py-1 rounded-lg border border-slate-200">${cyclePercent}% Progresso</span>
+                    <span class="text-xs font-black whitespace-nowrap ${cyclePercent === 100 ? 'text-emerald-600 bg-emerald-50' : cyclePercent >= 90 ? 'text-amber-700 bg-amber-50' : 'text-[#E30613] bg-red-50'} px-2 py-1 rounded-lg border border-slate-200">${cyclePercent}% Progresso</span>
                 </div>
                 <div class="space-y-2.5">
                     ${ALL_UNITS.map(unit => {
@@ -1023,10 +1023,10 @@ function renderDashboardStats(stats = null, force = false) {
                             <div>
                                 <div class="flex justify-between items-center text-[9px] font-bold text-slate-600 mb-0.5">
                                     <span>${unit}</span>
-                                    <span class="font-black ${unitPercent === 100 ? 'text-emerald-600' : 'text-slate-800'}">${photoCount}/${activeCount} no ciclo (${unitPercent}%) <span class="text-slate-400 font-bold">• frota ${fleetCount}</span></span>
+                                    <span class="font-black ${unitPercent === 100 ? 'text-emerald-600' : unitPercent >= 90 ? 'text-amber-600' : 'text-slate-800'}">${photoCount}/${activeCount} no ciclo (${unitPercent}%) <span class="text-slate-400 font-bold">• frota ${fleetCount}</span></span>
                                 </div>
                                 <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                                    <div class="${unitPercent === 100 ? 'bg-emerald-500' : 'bg-[#E30613]'} h-full transition-[width] duration-300" style="width: ${unitPercent}%"></div>
+                                    <div class="${unitPercent === 100 ? 'bg-emerald-500' : unitPercent >= 90 ? 'bg-amber-400' : 'bg-[#E30613]'} h-full transition-[width] duration-300" style="width: ${unitPercent}%"></div>
                                 </div>
                             </div>`;
                     }).join('')}
@@ -1604,7 +1604,12 @@ function openDashboardModal() {
             document.getElementById('total-counter').innerText = `${list.length} veículos`;
             
             const truckList = document.getElementById('truck-list');
-            truckList.innerHTML = list.map((t, i) => `<button onclick="setStep(${i})" class="w-full group flex flex-col items-center p-2.5 rounded-xl transition-all duration-200 ${truck.id === t.id ? 'bg-[#E30613] text-white shadow-lg scale-105' : 'hover:bg-white text-slate-400'}"><span class="text-[11px] font-black">${t.id}</span></button>`).join('');
+            truckList.innerHTML = list.map((t, i) => `<button data-truck-index="${i}" onclick="setStep(${i})" class="w-full group flex flex-col items-center p-2.5 rounded-xl transition-all duration-200 ${truck.id === t.id ? 'bg-[#E30613] text-white shadow-lg scale-105' : 'hover:bg-white text-slate-400'}"><span class="text-[11px] font-black">${t.id}</span></button>`).join('');
+
+            requestAnimationFrame(() => {
+                const activeTruckButton = truckList.querySelector(`[data-truck-index="${currentIndex}"]`);
+                if (activeTruckButton) activeTruckButton.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+            });
             
             document.getElementById('current-id').innerText = truck.id;
             document.getElementById('current-plate').innerText = `PLACA ${truck.plate || '---'}`;
