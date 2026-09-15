@@ -65,6 +65,21 @@
             box-shadow: 0 6px 25px rgba(227, 6, 19, 0.6);
             transform: translateY(-1px);
         }
+    
+        /* Marca d'água visual: sobreposição reversível, não altera o arquivo da foto. */
+        .fleet-photo-wrap { position: relative; overflow: hidden; }
+        *:has(> .fleet-watermark) { position: relative; overflow: hidden; }
+        .fleet-watermark {
+            position: absolute; inset: 0; z-index: 8; pointer-events: none;
+            display: flex; align-items: center; justify-content: center;
+            opacity: .16; transform: rotate(-18deg);
+        }
+        .fleet-watermark img {
+            width: 42%; max-width: 180px; height: auto; object-fit: contain;
+            filter: grayscale(1); user-select: none; -webkit-user-drag: none;
+        }
+        body.hide-fleet-watermark .fleet-watermark { display: none !important; }
+
     </style>
 </head>
 
@@ -236,6 +251,9 @@
         <div class="flex items-center gap-3">
             <button onclick="openDashboardModal()" class="flex items-center gap-1.5 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-2.5 py-1 rounded-md transition-all text-[10px] font-black uppercase" title="Ver estatísticas da frota">
                 <i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i> Dashboard
+            </button>
+            <button id="watermark-toggle-btn" onclick="toggleFleetWatermark()" class="flex items-center gap-1.5 bg-black/20 hover:bg-white text-white hover:text-slate-900 px-2.5 py-1 rounded-md transition-all text-[10px] font-black uppercase" title="Ocultar marca d'água nas fotos">
+                <i data-lucide="stamp" class="w-3.5 h-3.5"></i> Marca
             </button>
 
             <!-- BOTÃO DISCRETO PARA IMPORTAR PASTA DE FOTOS DO COMPUTADOR (NO MODO EDIÇÃO) -->
@@ -532,12 +550,32 @@
             }
         }
 
-        function handleSignOut() {
+        function resetEditMode() {
+            isAdmin = false;
+
+            const text = document.getElementById('adm-btn-text');
+            if (text) text.innerText = "Editar ✏️";
+
+            ['adm-fields-container', 'btn-add-truck', 'btn-add-year', 'btn-batch-import', 'btn-sync-fleet-data']
+                .forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.classList.add('hidden');
+                });
+        }
+
+        async function handleSignOut() {
+            // O modo de edição pertence somente à sessão atual.
+            // Reseta o estado lógico e visual ANTES de encerrar a autenticação.
+            resetEditMode();
             resetLoginButton();
             localStorage.removeItem(LAST_ACTIVITY_KEY);
-            auth.signOut();
-            isAdmin = false;
-            showToast("Você saiu da aplicação.");
+            try {
+                await auth.signOut();
+                showToast("Você saiu da aplicação.");
+            } catch (error) {
+                console.error("Erro ao sair:", error);
+                showToast("Não foi possível encerrar a sessão.", "error");
+            }
         }
 
         // CARREGA A LISTA DE EDITORES DO FIRESTORE EM TEMPO REAL
@@ -588,6 +626,7 @@
 
                 if (sessionExpired) {
                     localStorage.removeItem(LAST_ACTIVITY_KEY);
+                    resetEditMode();
                     await auth.signOut();
                     return;
                 }
@@ -600,6 +639,7 @@
                 listenToAuthorizedEditors();
                 loadYearsList();
             } else {
+                resetEditMode();
                 resetLoginButton();
                 loadingScreen.classList.add('hidden');
                 loginScreen.classList.remove('hidden');
@@ -822,7 +862,7 @@ function truckHasPhotoInCycle(truck, cycleIdx) {
 }
 
 // CACHE + RENDERIZAÇÃO ESTÁVEL DO DASHBOARD
-const DASHBOARD_CACHE_PREFIX = 'cb-frota-dashboard-v3:';
+const DASHBOARD_CACHE_PREFIX = 'cb-frota-dashboard-v4:';
 let lastDashboardRenderSignature = '';
 
 function getDashboardCacheKey() {
@@ -862,7 +902,7 @@ function calculateDashboardStats() {
     const globalWithPhoto = cycleStats.reduce((sum, cycle) => sum + cycle.withPhoto, 0);
 
     return {
-        version: 3,
+        version: 4,
         year: String(activeYear),
         totalTrucks,
         notesTrucks,
@@ -885,7 +925,7 @@ function saveDashboardCache(stats) {
 function loadDashboardCache() {
     try {
         const cached = JSON.parse(localStorage.getItem(getDashboardCacheKey()) || 'null');
-        if (!cached || cached.version !== 3 || String(cached.year) !== String(activeYear) || !Array.isArray(cached.cycles)) return null;
+        if (!cached || cached.version !== 4 || String(cached.year) !== String(activeYear) || !Array.isArray(cached.cycles)) return null;
         return cached;
     } catch (error) {
         console.warn('Cache do dashboard inválido:', error);
@@ -936,11 +976,12 @@ function renderDashboardStats(stats = null, force = false) {
                         const activeCount = unitData.active;
                         const photoCount = unitData.withPhoto;
                         const unitPercent = activeCount > 0 ? Math.round((photoCount / activeCount) * 100) : 0;
+                            const fleetCount = stats?.unitFleetCounts?.[unit] ?? rawFleetDocs.filter(t => Array.isArray(t.cycleUnits) && t.cycleUnits.includes(unit)).length;
                         return `
                             <div>
                                 <div class="flex justify-between items-center text-[9px] font-bold text-slate-600 mb-0.5">
                                     <span>${unit}</span>
-                                    <span class="font-black ${unitPercent === 100 ? 'text-emerald-600' : 'text-slate-800'}">${photoCount}/${activeCount} no ciclo (${unitPercent}%) <span class="text-slate-400 font-bold">• frota ${stats.unitFleetCounts?.[unit] ?? activeCount}</span></span>
+                                    <span class="font-black ${unitPercent === 100 ? 'text-emerald-600' : 'text-slate-800'}">${photoCount}/${activeCount} no ciclo (${unitPercent}%) <span class="text-slate-400 font-bold">• frota ${fleetCount}</span></span>
                                 </div>
                                 <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
                                     <div class="${unitPercent === 100 ? 'bg-emerald-500' : 'bg-[#E30613]'} h-full transition-[width] duration-300" style="width: ${unitPercent}%"></div>
@@ -1642,7 +1683,7 @@ function openDashboardModal() {
                                          ondrop="handleDrop(event, ${i}, ${s}, '${truck.docId}')"
                                          class="image-slot bg-slate-50 rounded-2xl border border-slate-200 relative group overflow-hidden ${canUpload ? 'border-blue-300 hover:bg-blue-50 cursor-pointer' : 'cursor-zoom-in'} flex items-center justify-center shadow-sm">
                                         
-                                        ${imgUrl ? `<img src="${imgUrl}" onload="handleImgLoad(this)" onerror="handleImgError(this)" onclick="openZoom('${imgUrl}')" class="opacity-0 max-w-full max-h-full object-contain z-10 transition-transform duration-300 group-hover:scale-105" alt="Foto da frota">` : ''}
+                                        ${imgUrl ? `<img src="${imgUrl}" onload="handleImgLoad(this)" onerror="handleImgError(this)" onclick="openZoom('${imgUrl}')" class="opacity-0 max-w-full max-h-full object-contain z-10 transition-transform duration-300 group-hover:scale-105" alt="Foto da frota"><div class="fleet-watermark" aria-hidden="true"><img src="./logo.png" alt=""></div>` : ''}
                                         
                                         <i data-lucide="${canUpload ? 'upload-cloud' : 'image'}" class="img-placeholder-icon absolute w-5 h-5 ${canUpload ? 'text-blue-400' : 'text-slate-200'} z-0"></i>
                                         
@@ -1711,6 +1752,23 @@ function openDashboardModal() {
                     .catch(err => console.log('Erro ao registrar PWA:', err));
             });
         }
-    </script>
+    
+function applyFleetWatermarkPreference() {
+    const hidden = localStorage.getItem('cb-frota-hide-watermark') === '1';
+    document.body.classList.toggle('hide-fleet-watermark', hidden);
+    const btn = document.getElementById('watermark-toggle-btn');
+    if (btn) {
+        btn.title = hidden ? "Mostrar marca d'água nas fotos" : "Ocultar marca d'água nas fotos";
+        btn.classList.toggle('opacity-50', hidden);
+    }
+}
+function toggleFleetWatermark() {
+    const willHide = !document.body.classList.contains('hide-fleet-watermark');
+    localStorage.setItem('cb-frota-hide-watermark', willHide ? '1' : '0');
+    applyFleetWatermarkPreference();
+}
+document.addEventListener('DOMContentLoaded', applyFleetWatermarkPreference);
+
+</script>
 </body>
 </html>
