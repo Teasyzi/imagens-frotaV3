@@ -65,23 +65,7 @@
             box-shadow: 0 6px 25px rgba(227, 6, 19, 0.6);
             transform: translateY(-1px);
         }
-    
-
-        /* Dashboard: 0–69 vermelho, 70–89 laranja, 90–99 azul, 100 verde. */
-        .dashboard-low-bar { background-color: #ef4444 !important; }
-        .dashboard-low-text { color: #dc2626 !important; }
-        .dashboard-low-badge { color: #b91c1c !important; background-color: #fef2f2 !important; }
-        .dashboard-near-bar { background-color: #f59e0b !important; }
-        .dashboard-near-text { color: #d97706 !important; }
-        .dashboard-near-badge { color: #b45309 !important; background-color: #fffbeb !important; }
-        .dashboard-goal-bar { background-color: #2563eb !important; }
-        .dashboard-goal-text { color: #2563eb !important; }
-        .dashboard-goal-badge { color: #1d4ed8 !important; background-color: #eff6ff !important; }
-        .dashboard-complete-bar { background-color: #22c55e !important; }
-        .dashboard-complete-text { color: #16a34a !important; }
-        .dashboard-complete-badge { color: #15803d !important; background-color: #f0fdf4 !important; }
-
-    </style>
+</style>
 </head>
 
 <body class="bg-[#F8FAFC] text-slate-900 h-screen flex flex-col">
@@ -1002,12 +986,17 @@ function getDashboardSignature(stats) {
     return JSON.stringify(stable);
 }
 
-function getDashboardProgressState(percent) {
-    const value = Number(percent) || 0;
-    if (value >= 100) return { bar: 'dashboard-complete-bar', text: 'dashboard-complete-text', badge: 'dashboard-complete-badge', label: 'COMPLETO ✓' };
-    if (value >= 90) return { bar: 'dashboard-goal-bar', text: 'dashboard-goal-text', badge: 'dashboard-goal-badge', label: 'META ATINGIDA' };
-    if (value >= 70) return { bar: 'dashboard-near-bar', text: 'dashboard-near-text', badge: 'dashboard-near-badge', label: 'PRÓXIMO DA META' };
-    return { bar: 'dashboard-low-bar', text: 'dashboard-low-text', badge: 'dashboard-low-badge', label: 'ABAIXO DA META' };
+function getDashboardProgressStyle(percent) {
+    const value = Math.max(0, Math.min(100, Number(percent) || 0));
+
+    // Gradiente contínuo: 0% vermelho -> 50% âmbar -> 100% verde.
+    // HSL permite que cada ponto percentual tenha sua própria cor.
+    const hue = Math.round(value * 1.2); // 0 = vermelho, 60 = amarelo, 120 = verde
+    const barColor = `hsl(${hue} 78% 46%)`;
+    const textColor = `hsl(${hue} 72% 34%)`;
+    const softColor = `hsl(${hue} 85% 95%)`;
+
+    return { value, barColor, textColor, softColor };
 }
 
 function renderDashboardStats(stats = null, force = false) {
@@ -1025,7 +1014,7 @@ function renderDashboardStats(stats = null, force = false) {
     const nextHtml = [0, 1, 2].map(cycleIdx => {
         const cycle = stats.cycles[cycleIdx] || { totalActive: 0, withPhoto: 0, units: {} };
         const cyclePercent = cycle.totalActive > 0 ? Math.round((cycle.withPhoto / cycle.totalActive) * 100) : 0;
-        const cycleProgressState = getDashboardProgressState(cyclePercent);
+        const cycleProgressStyle = getDashboardProgressStyle(cyclePercent);
         return `
             <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col gap-3">
                 <div class="border-b pb-2 flex justify-between items-center">
@@ -1033,7 +1022,7 @@ function renderDashboardStats(stats = null, force = false) {
                         <span class="text-xs font-black text-slate-800 uppercase tracking-wider">${cycleInfo[cycleIdx].label}</span>
                         <span class="text-[9px] font-bold text-slate-400 italic block">${cycleInfo[cycleIdx].range}</span>
                     </div>
-                    <span class="text-xs font-black whitespace-nowrap ${cycleProgressState.badge} px-2 py-1 rounded-lg border border-slate-200">${cyclePercent}% • ${cycleProgressState.label}</span>
+                    <span class="text-xs font-black whitespace-nowrap px-2 py-1 rounded-lg border border-slate-200 transition-colors duration-300" style="color: ${cycleProgressStyle.textColor}; background-color: ${cycleProgressStyle.softColor};">${cyclePercent}% Progresso</span>
                 </div>
                 <div class="space-y-2.5">
                     ${ALL_UNITS.map(unit => {
@@ -1041,16 +1030,16 @@ function renderDashboardStats(stats = null, force = false) {
                         const activeCount = unitData.active;
                         const photoCount = unitData.withPhoto;
                         const unitPercent = activeCount > 0 ? Math.round((photoCount / activeCount) * 100) : 0;
-                        const unitProgressState = getDashboardProgressState(unitPercent);
+                        const unitProgressStyle = getDashboardProgressStyle(unitPercent);
                         const fleetCount = stats?.unitFleetCounts?.[unit] ?? rawFleetDocs.filter(t => Array.isArray(t.cycleUnits) && t.cycleUnits.includes(unit)).length;
                         return `
                             <div>
                                 <div class="flex justify-between items-center text-[9px] font-bold text-slate-600 mb-0.5">
                                     <span>${unit}</span>
-                                    <span class="font-black ${unitProgressState.text}">${photoCount}/${activeCount} no ciclo (${unitPercent}%) <span class="text-slate-400 font-bold">• frota ${fleetCount}</span></span>
+                                    <span class="font-black transition-colors duration-300" style="color: ${unitProgressStyle.textColor};">${photoCount}/${activeCount} no ciclo (${unitPercent}%) <span class="text-slate-400 font-bold">• frota ${fleetCount}</span></span>
                                 </div>
                                 <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                                    <div class="${unitProgressState.bar} h-full transition-[width] duration-300" style="width: ${unitPercent}%"></div>
+                                    <div class="h-full transition-all duration-500" style="width: ${unitPercent}%; background-color: ${unitProgressStyle.barColor};"></div>
                                 </div>
                             </div>`;
                     }).join('')}
