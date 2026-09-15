@@ -1049,9 +1049,7 @@ function renderDashboardStats(stats = null, force = false) {
                                     <div class="h-full rounded-full transition-all duration-500" style="width: ${unitPercent}%; background-color: ${unitProgressStyle.barColor};"></div>
                                 </div>
                             </div>
-                                    ${unitPercent > 0 ? `<div class="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm z-20 transition-all duration-500" style="left: ${unitPercent}%; background-color: ${unitProgressStyle.textColor};"></div>` : ''}
-                                </div>
-                            </div>`;
+`;
                     }).join('')}
                 </div>
             </div>`;
