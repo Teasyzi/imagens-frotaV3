@@ -781,6 +781,59 @@
             const fleetById = new Map(rawFleetDocs.map(t => [String(t.id), t]));
             const resolutionCache = new Map();
 
+            // Quando a raiz selecionada é uma UNIDADE (ex.: CB NORTE), todos os
+            // veículos abaixo dela vieram do mesmo pai: CICLO > UNIDADE > VEÍCULO.
+            // Como o navegador omite o pai do diretório selecionado, resolvemos o
+            // ciclo uma única vez para a unidade inteira, nunca veículo por veículo.
+            const rootParts = (imageFiles[0].webkitRelativePath || '').split('/').map(p => p.trim()).filter(Boolean);
+            const selectedRoot = rootParts[0] || '';
+            const selectedRootUnit = mapearUnidade(selectedRoot);
+            let selectedUnitCycle = -1;
+
+            if (selectedRootUnit && mapearCiclo(selectedRoot) === -1) {
+                const truckIdsInSelection = new Set();
+                imageFiles.forEach(file => {
+                    const parts = (file.webkitRelativePath || file.name).split('/').map(p => p.trim()).filter(Boolean);
+                    const id = parts.find(part => /^\d+$/.test(part));
+                    if (id && fleetById.has(String(id))) truckIdsInSelection.add(String(id));
+                });
+
+                // Procura um ciclo comum em que os veículos encontrados pertençam à unidade.
+                const possibleCycles = [0, 1, 2].filter(cycleIdx => {
+                    if (truckIdsInSelection.size === 0) return false;
+                    return [...truckIdsInSelection].every(id => {
+                        const truck = fleetById.get(id);
+                        return normalizarNomePasta(truck?.cycleUnits?.[cycleIdx]) === normalizarNomePasta(selectedRootUnit);
+                    });
+                });
+
+                if (possibleCycles.length === 1) {
+                    selectedUnitCycle = possibleCycles[0];
+                } else {
+                    // Se houver mais de uma possibilidade, pergunta UMA vez para toda a unidade.
+                    const relevantCycles = possibleCycles.length ? possibleCycles : [0, 1, 2].filter(cycleIdx =>
+                        [...truckIdsInSelection].some(id => normalizarNomePasta(fleetById.get(id)?.cycleUnits?.[cycleIdx]) === normalizarNomePasta(selectedRootUnit))
+                    );
+                    const options = relevantCycles.map(idx => `${idx + 1} = ${cycleInfo[idx].label}`).join('\n');
+                    if (options) {
+                        const answer = window.prompt(
+                            `A pasta selecionada é a unidade ${selectedRootUnit}.\nTodos os veículos desta pasta serão importados para o MESMO ciclo.\n\nEscolha o ciclo da unidade:\n${options}\n\nDigite 1, 2 ou 3.`,
+                            String(relevantCycles[0] + 1)
+                        );
+                        if (answer !== null) {
+                            const chosen = Number(String(answer).trim()) - 1;
+                            if (relevantCycles.includes(chosen)) selectedUnitCycle = chosen;
+                        }
+                    }
+                }
+
+                if (selectedUnitCycle === -1) {
+                    input.value = '';
+                    showToast(`Importação da unidade ${selectedRootUnit} cancelada: ciclo não definido.`, 'error');
+                    return;
+                }
+            }
+
             for (const file of imageFiles) {
                 const pathParts = (file.webkitRelativePath || file.name).split('/').map(p => p.trim()).filter(Boolean);
                 let cycleIdx = -1;
@@ -808,11 +861,18 @@
                 // descobre o ciclo pelo cadastro do veículo. Em caso de ambiguidade, pergunta uma
                 // única vez por veículo/unidade e reutiliza a escolha para todas as fotos.
                 if (cycleIdx === -1) {
-                    const cacheKey = `${truckId}|${unitHint || '*'}`;
-                    if (!resolutionCache.has(cacheKey)) {
-                        resolutionCache.set(cacheKey, escolherCicloImportacao(truck, unitHint));
+                    // Pasta de unidade: usa a decisão única feita para toda a pasta.
+                    // Pasta de um veículo: mantém a resolução individual, pois não há
+                    // contexto suficiente para saber de qual ciclo aquela pasta veio.
+                    if (selectedRootUnit && unitHint && normalizarNomePasta(unitHint) === normalizarNomePasta(selectedRootUnit)) {
+                        cycleIdx = selectedUnitCycle;
+                    } else {
+                        const cacheKey = `${truckId}|${unitHint || '*'}`;
+                        if (!resolutionCache.has(cacheKey)) {
+                            resolutionCache.set(cacheKey, escolherCicloImportacao(truck, unitHint));
+                        }
+                        cycleIdx = resolutionCache.get(cacheKey);
                     }
-                    cycleIdx = resolutionCache.get(cacheKey);
                 }
 
                 if (cycleIdx === -1) {
