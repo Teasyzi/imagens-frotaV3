@@ -720,6 +720,46 @@
             return -1;
         }
 
+        function normalizarNomePasta(valor) {
+            return String(valor || '')
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .toUpperCase().trim();
+        }
+
+        function mapearUnidade(nomePasta) {
+            const text = normalizarNomePasta(nomePasta);
+            return ALL_UNITS.find(unit => normalizarNomePasta(unit) === text) || null;
+        }
+
+        function obterCiclosPossiveis(truck, unitHint = null) {
+            if (!truck || !Array.isArray(truck.cycleUnits)) return [];
+            const unitNormalized = unitHint ? normalizarNomePasta(unitHint) : null;
+            const candidates = [];
+            truck.cycleUnits.forEach((unit, cycleIdx) => {
+                if (!unit) return;
+                if (!unitNormalized || normalizarNomePasta(unit) === unitNormalized) {
+                    candidates.push({ cycleIdx, unit });
+                }
+            });
+            return candidates;
+        }
+
+        function escolherCicloImportacao(truck, unitHint = null) {
+            const candidates = obterCiclosPossiveis(truck, unitHint);
+            if (candidates.length === 0) return -1;
+            if (candidates.length === 1) return candidates[0].cycleIdx;
+
+            const contexto = unitHint ? ` da unidade ${unitHint}` : '';
+            const options = candidates.map(c => `${c.cycleIdx + 1} = ${cycleInfo[c.cycleIdx].label} — ${c.unit}`).join('\n');
+            const answer = window.prompt(
+                `O veículo ${truck.id}${contexto} aparece em mais de um ciclo.\n\nEscolha onde importar as fotos:\n${options}\n\nDigite 1, 2 ou 3.`,
+                String(candidates[0].cycleIdx + 1)
+            );
+            if (answer === null) return -1;
+            const selected = Number(String(answer).trim()) - 1;
+            return candidates.some(c => c.cycleIdx === selected) ? selected : -1;
+        }
+
         async function handleFolderBatchUpload(input) {
             const files = Array.from(input.files || []);
             if (files.length === 0) return;
@@ -738,25 +778,52 @@
 
             const grouped = new Map();
             const ignored = [];
-            const currentFleetIds = new Set(rawFleetDocs.map(t => String(t.id)));
+            const fleetById = new Map(rawFleetDocs.map(t => [String(t.id), t]));
+            const resolutionCache = new Map();
 
             for (const file of imageFiles) {
-                const pathParts = (file.webkitRelativePath || file.name).split('/');
+                const pathParts = (file.webkitRelativePath || file.name).split('/').map(p => p.trim()).filter(Boolean);
                 let cycleIdx = -1;
+                let unitHint = null;
                 let truckId = "";
 
-                for (const rawPart of pathParts) {
-                    const part = rawPart.trim();
+                for (const part of pathParts) {
                     if (cycleIdx === -1) cycleIdx = mapearCiclo(part);
+                    if (!unitHint) unitHint = mapearUnidade(part);
                     if (/^\d+$/.test(part)) truckId = part;
                 }
 
-                if (cycleIdx === -1 || !truckId) {
-                    ignored.push(`${file.name}: pasta de ciclo/veículo não reconhecida`);
+                if (!truckId) {
+                    ignored.push(`${file.name}: pasta do veículo não reconhecida`);
                     continue;
                 }
-                if (!currentFleetIds.has(String(truckId))) {
+
+                const truck = fleetById.get(String(truckId));
+                if (!truck) {
                     ignored.push(`${file.name}: veículo ${truckId} não existe em ${activeYear}`);
+                    continue;
+                }
+
+                // Se a pasta selecionada não contém o ciclo (ex.: CB NORTE/123 ou apenas 123),
+                // descobre o ciclo pelo cadastro do veículo. Em caso de ambiguidade, pergunta uma
+                // única vez por veículo/unidade e reutiliza a escolha para todas as fotos.
+                if (cycleIdx === -1) {
+                    const cacheKey = `${truckId}|${unitHint || '*'}`;
+                    if (!resolutionCache.has(cacheKey)) {
+                        resolutionCache.set(cacheKey, escolherCicloImportacao(truck, unitHint));
+                    }
+                    cycleIdx = resolutionCache.get(cacheKey);
+                }
+
+                if (cycleIdx === -1) {
+                    ignored.push(`${file.name}: ciclo não definido para o veículo ${truckId}${unitHint ? ` na unidade ${unitHint}` : ''}`);
+                    continue;
+                }
+
+                // Quando a unidade veio no caminho, impede importar acidentalmente para um ciclo
+                // em que o veículo pertence a outra unidade.
+                if (unitHint && normalizarNomePasta(truck.cycleUnits?.[cycleIdx]) !== normalizarNomePasta(unitHint)) {
+                    ignored.push(`${file.name}: veículo ${truckId} não pertence à unidade ${unitHint} no ${cycleInfo[cycleIdx].label}`);
                     continue;
                 }
 
@@ -795,8 +862,6 @@
                             const match = file.name.toLowerCase().match(/slot[\s_-]*([1-4])(?:\D|$)/);
                             if (match) {
                                 const slot = Number(match[1]);
-                                // Se houver duas imagens pedindo o mesmo slot, mantém a primeira e
-                                // manda a outra para preenchimento automático de um slot livre.
                                 if (!explicit.has(slot)) explicit.set(slot, file);
                                 else automatic.push(file);
                             } else {
@@ -845,7 +910,6 @@
                 }
             }
 
-            // Limpa o input para permitir selecionar a mesma pasta novamente.
             input.value = '';
 
             if (imported > 0) {
