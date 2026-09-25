@@ -196,7 +196,7 @@
         </div>
     </div>
 
-    <div id="photo-status-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[280] hidden flex items-center justify-center p-4">
+    <div id="photo-status-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-5 shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col">
             <div class="flex justify-between items-center border-b pb-3 mb-3">
                 <div class="flex items-center gap-2 text-slate-900">
@@ -573,6 +573,10 @@
         }
 
         function resetEditMode() {
+            // O modo de edição é apenas estado de sessão (isAdmin).
+            // Ao sair/trocar de usuário, precisamos também reconstruir a parte
+            // visual que foi gerada pelo renderSlotsGridOnly(), pois ela contém
+            // selects, botões de excluir e áreas de upload que só existem no modo edição.
             isAdmin = false;
 
             const text = document.getElementById('adm-btn-text');
@@ -583,6 +587,12 @@
                     const el = document.getElementById(id);
                     if (el) el.classList.add('hidden');
                 });
+
+            // Corrige o caso em que o usuário sai e entra novamente:
+            // a variável volta para false, mas o HTML antigo continuava na tela.
+            if (typeof renderSlotsGridOnly === 'function' && Array.isArray(rawFleetDocs) && rawFleetDocs.length) {
+                renderSlotsGridOnly();
+            }
         }
 
         async function handleSignOut() {
@@ -658,6 +668,10 @@
                 isRestoringNavigationState = true;
                 loginScreen.classList.add('hidden');
                 loadingScreen.classList.add('hidden');
+
+                // Toda nova sessão começa fora do modo de edição.
+                resetEditMode();
+
                 listenToAuthorizedEditors();
                 loadYearsList();
             } else {
