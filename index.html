@@ -1162,20 +1162,23 @@ function renderDashboardStats(stats = null, force = false) {
                         const unitProgressStyle = getDashboardProgressStyle(unitPercent);
                         const fleetCount = stats?.unitFleetCounts?.[unit] ?? rawFleetDocs.filter(t => Array.isArray(t.cycleUnits) && t.cycleUnits.includes(unit)).length;
                         return `
-                            <div>
+                            <button type="button"
+                                onclick='openPhotoStatusModal(${cycleIdx}, ${JSON.stringify(unit)})'
+                                class="w-full text-left rounded-xl p-2 -mx-2 cursor-pointer hover:bg-white/80 active:bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200"
+                                title="Abrir veículos de ${unit} • ${cycleInfo[cycleIdx].label}">
                                 <div class="flex justify-between items-center text-[9px] font-bold text-slate-600 mb-0.5">
-                                    <span>${unit}</span>
+                                    <span class="font-black">${unit}</span>
                                     <span class="font-black text-slate-800 flex items-center gap-1.5">
                                         <span>${photoCount}/${activeCount} no ciclo <span class="transition-colors duration-300" style="color: ${unitProgressStyle.barColor};">(${unitPercent}%)</span> <span class="text-slate-400 font-bold">• frota ${fleetCount}</span></span>
-                                        <button onclick="event.stopPropagation(); openPhotoStatusModal(${cycleIdx}, '${unit.replace(/'/g, "\'")}')" class="text-slate-400 hover:text-slate-900 transition-colors" title="Ver veículos com e sem imagem">
+                                        <span class="text-slate-400 flex items-center justify-center w-5 h-5 rounded-md" aria-hidden="true">
                                             <i data-lucide="list-checks" class="w-3 h-3"></i>
-                                        </button>
+                                        </span>
                                     </span>
                                 </div>
                                 <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
                                     <div class="h-full rounded-full transition-all duration-500" style="width: ${unitPercent}%; background-color: ${unitProgressStyle.barColor};"></div>
                                 </div>
-                            </div>
+                            </button>
 `;
                     }).join('')}
                 </div>
