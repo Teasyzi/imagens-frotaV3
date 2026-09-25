@@ -1,3 +1,13 @@
+
+// --- INICIO: Correcao de Estado do Modo de Edicao ---
+document.addEventListener('DOMContentLoaded', () => {
+    localStorage.setItem('isEditMode', 'false');
+    if (typeof isEditMode !== 'undefined') {
+        isEditMode = false;
+    }
+});
+// --- FIM ---
+
 // Gerado a partir de Consolidado 2º Ciclo.xlsx
 // Campos importados: placa, modelo, tipo e ano-modelo (fallback para ano de fabricação).
 // Nenhum outro campo da planilha é importado.
