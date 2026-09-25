@@ -776,7 +776,7 @@
         }
 
         function mapearCiclo(nomePasta) {
-            const text = nomePasta.toUpperCase().trim();
+            const text = String(nomePasta || '').toUpperCase().trim();
             if (text.includes("PRIMEIRO") || text.includes("1º") || text.includes("1 CICLO") || text.includes("CICLO 1")) return 0;
             if (text.includes("SEGUNDO") || text.includes("2º") || text.includes("2 CICLO") || text.includes("CICLO 2")) return 1;
             if (text.includes("TERCEIRO") || text.includes("3º") || text.includes("3 CICLO") || text.includes("CICLO 3")) return 2;
@@ -784,8 +784,26 @@
         }
 
         function mapearUnidade(nomePasta) {
-            const text = nomePasta.toUpperCase().trim();
+            const text = String(nomePasta || '').toUpperCase().trim();
             return ALL_UNITS.find(unit => text === unit || text.includes(unit)) || null;
+        }
+
+        // Identifica o veículo pelo nome de uma pasta. Aceita tanto "160" quanto
+        // nomes como "Veículo 160", mas só considera IDs que realmente existem
+        // no ano ativo para não confundir números presentes em outros nomes.
+        function mapearVeiculoNoCaminho(pathParts, currentFleetIds) {
+            for (const rawPart of pathParts) {
+                const part = String(rawPart || '').trim();
+                if (/^\d+$/.test(part) && currentFleetIds.has(String(part))) {
+                    return String(part);
+                }
+
+                const match = part.match(/(?:VE[IÍ]CULO|CAMINH[Aã]O|TRUCK)\s*[-_#]*\s*(\d+)/i);
+                if (match && currentFleetIds.has(String(match[1]))) {
+                    return String(match[1]);
+                }
+            }
+            return '';
         }
 
         function solicitarCicloParaUnidade(unit) {
@@ -798,6 +816,19 @@
             const value = resposta.trim();
             if (value === '1' || value === '2' || value === '3') return Number(value) - 1;
             showToast(`Ciclo inválido para ${unit}. A importação desta unidade foi ignorada.`, "error");
+            return -1;
+        }
+
+        function solicitarCicloParaVeiculo(truckId) {
+            const resposta = prompt(
+                `A pasta do veículo ${truckId} não contém o nome do ciclo no caminho.\n\n` +
+                `Digite para qual ciclo estas fotos devem ser importadas:\n` +
+                `1 = 1º Ciclo\n2 = 2º Ciclo\n3 = 3º Ciclo`
+            );
+            if (resposta === null) return -1;
+            const value = resposta.trim();
+            if (value === '1' || value === '2' || value === '3') return Number(value) - 1;
+            showToast(`Ciclo inválido para o veículo ${truckId}. A importação foi ignorada.`, "error");
             return -1;
         }
 
@@ -819,6 +850,7 @@
 
             const grouped = new Map();
             const pendingByUnit = new Map();
+            const pendingByVehicle = new Map();
             const ignored = [];
             const currentFleetIds = new Set(rawFleetDocs.map(t => String(t.id)));
 
@@ -826,17 +858,16 @@
                 const pathParts = (file.webkitRelativePath || file.name).split('/');
                 let cycleIdx = -1;
                 let unit = null;
-                let truckId = "";
+                let truckId = mapearVeiculoNoCaminho(pathParts, currentFleetIds);
 
                 for (const rawPart of pathParts) {
                     const part = rawPart.trim();
                     if (cycleIdx === -1) cycleIdx = mapearCiclo(part);
                     if (!unit) unit = mapearUnidade(part);
-                    if (/^\d+$/.test(part)) truckId = part;
                 }
 
                 if (!truckId) {
-                    ignored.push(`${file.name}: veículo não identificado`);
+                    ignored.push(`${file.name}: veículo não identificado no caminho da pasta`);
                     continue;
                 }
                 if (!currentFleetIds.has(String(truckId))) {
@@ -844,8 +875,8 @@
                     continue;
                 }
 
-                // Se o ciclo já estiver no caminho (ciclo > unidade > veículo > imagem),
-                // nunca pergunta nada: o caminho já determina o ciclo.
+                // 1) CICLO > UNIDADE > VEÍCULO > FOTO
+                // O nome da pasta do ciclo determina automaticamente o destino.
                 if (cycleIdx !== -1) {
                     const key = `${cycleIdx}_${truckId}`;
                     if (!grouped.has(key)) grouped.set(key, []);
@@ -853,14 +884,21 @@
                     continue;
                 }
 
-                // Caso o usuário selecione somente a pasta da unidade, perguntamos
-                // UMA única vez por unidade e aplicamos a resposta a todos os veículos.
-                if (!unit) {
-                    ignored.push(`${file.name}: unidade não reconhecida no caminho`);
+                // 2) UNIDADE > VEÍCULO > FOTO
+                // A unidade foi reconhecida, então perguntamos UMA única vez
+                // para aquela unidade e aplicamos a resposta aos seus veículos.
+                if (unit) {
+                    if (!pendingByUnit.has(unit)) pendingByUnit.set(unit, []);
+                    pendingByUnit.get(unit).push({ file, truckId });
                     continue;
                 }
-                if (!pendingByUnit.has(unit)) pendingByUnit.set(unit, []);
-                pendingByUnit.get(unit).push({ file, truckId });
+
+                // 3) VEÍCULO > FOTO
+                // Quando a pasta selecionada é diretamente a do veículo, o
+                // navegador não informa mais a unidade no webkitRelativePath.
+                // Nesse caso perguntamos o ciclo UMA vez por veículo.
+                if (!pendingByVehicle.has(truckId)) pendingByVehicle.set(truckId, []);
+                pendingByVehicle.get(truckId).push({ file, truckId });
             }
 
             for (const [unit, entries] of pendingByUnit.entries()) {
@@ -870,6 +908,19 @@
                     continue;
                 }
                 entries.forEach(({ file, truckId }) => {
+                    const key = `${cycleIdx}_${truckId}`;
+                    if (!grouped.has(key)) grouped.set(key, []);
+                    grouped.get(key).push(file);
+                });
+            }
+
+            for (const [truckId, entries] of pendingByVehicle.entries()) {
+                const cycleIdx = solicitarCicloParaVeiculo(truckId);
+                if (cycleIdx === -1) {
+                    entries.forEach(({ file }) => ignored.push(`${file.name}: ciclo não definido para o veículo ${truckId}`));
+                    continue;
+                }
+                entries.forEach(({ file }) => {
                     const key = `${cycleIdx}_${truckId}`;
                     if (!grouped.has(key)) grouped.set(key, []);
                     grouped.get(key).push(file);
