@@ -49,14 +49,14 @@
 
         /* PAINEL DE STATUS DOS VEÍCULOS — escopo exclusivo desta janela */
         #photo-status-modal .photo-status-dialog { max-width: 1500px; width: min(96vw, 1500px); height: min(90vh, 860px); }
-        #photo-status-modal .photo-status-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; height: 100%; min-height: 0; }
+        #photo-status-modal .photo-status-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; height: 100%; min-height: 0; }
         #photo-status-modal .photo-status-section { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-        #photo-status-modal .photo-status-items { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; align-content: start; overflow-y: auto; min-height: 0; flex: 1; padding: 8px; }
-        #photo-status-modal .photo-status-card { min-height: 54px; padding: 7px 9px; border-radius: 10px; }
+        #photo-status-modal .photo-status-items { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-content: start; overflow-y: auto; min-height: 0; flex: 1; padding: 10px; scrollbar-gutter: stable; }
+        #photo-status-modal .photo-status-card { min-height: 56px; padding: 7px 10px; border-radius: 11px; text-align: left; box-sizing: border-box; }
         #photo-status-modal .photo-status-icon { width: 28px; height: 28px; border-radius: 8px; }
         #photo-status-modal .photo-status-icon svg { width: 13px; height: 13px; }
-        #photo-status-modal .photo-status-card-title { font-size: 9px; }
-        #photo-status-modal .photo-status-card-meta { font-size: 8px; margin-top: 1px; }
+        #photo-status-modal .photo-status-card-title { font-size: 9px; line-height: 1.1; }
+        #photo-status-modal .photo-status-card-meta { font-size: 7.5px; line-height: 1.15; margin-top: 2px; text-align: left; }
         @media (max-width: 900px) {
             #photo-status-modal .photo-status-dialog { width: 96vw; height: 92vh; }
             #photo-status-modal .photo-status-columns { grid-template-columns: 1fr; }
@@ -1263,7 +1263,7 @@ function renderPhotoStatusList(term = '') {
             <div class="photo-status-icon ${vehicle.hasPhoto ? 'bg-emerald-500' : 'bg-red-500'} text-white flex items-center justify-center shrink-0 shadow-sm">
                 <i data-lucide="${vehicle.hasPhoto ? 'image' : 'image-off'}"></i>
             </div>
-            <div class="min-w-0 flex-1">
+            <div class="min-w-0 flex-1 text-left">
                 <div class="flex items-center gap-1.5 min-w-0">
                     <span class="photo-status-card-title font-black text-slate-800 whitespace-nowrap">Veículo ${vehicle.id}</span>
                     <span class="text-[7px] font-black uppercase tracking-wide ${vehicle.hasPhoto ? 'text-emerald-700 bg-emerald-100' : 'text-red-700 bg-red-100'} px-1 py-0.5 rounded">${vehicle.hasPhoto ? 'COM' : 'SEM'}</span>

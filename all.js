@@ -876,7 +876,7 @@ function renderPhotoStatusList(term = '') {
             <div class="photo-status-icon ${vehicle.hasPhoto ? 'bg-emerald-500' : 'bg-red-500'} text-white flex items-center justify-center shrink-0 shadow-sm">
                 <i data-lucide="${vehicle.hasPhoto ? 'image' : 'image-off'}"></i>
             </div>
-            <div class="min-w-0 flex-1">
+            <div class="min-w-0 flex-1 text-left">
                 <div class="flex items-center gap-1.5 min-w-0">
                     <span class="photo-status-card-title font-black text-slate-800 whitespace-nowrap">Veículo ${vehicle.id}</span>
                     <span class="text-[7px] font-black uppercase tracking-wide ${vehicle.hasPhoto ? 'text-emerald-700 bg-emerald-100' : 'text-red-700 bg-red-100'} px-1 py-0.5 rounded">${vehicle.hasPhoto ? 'COM' : 'SEM'}</span>
