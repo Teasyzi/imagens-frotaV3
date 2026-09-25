@@ -365,6 +365,12 @@
 .flex {
   display: flex;
 }
+
+/* Compatibilidade com classes `hidden flex` usadas nos modais e controles:
+   o estado oculto precisa vencer a utilidade `.flex`, sem quebrar `hidden md:flex`. */
+.hidden.flex {
+  display: none;
+}
 .grid {
   display: grid;
 }
