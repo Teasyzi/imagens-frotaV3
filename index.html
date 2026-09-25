@@ -196,6 +196,47 @@
         </div>
     </div>
 
+    <div id="photo-status-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[280] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-5 shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col">
+            <div class="flex justify-between items-center border-b pb-3 mb-3">
+                <div class="flex items-center gap-2 text-slate-900">
+                    <div class="bg-slate-900 p-1.5 rounded-xl text-white">
+                        <i data-lucide="list-checks" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 id="photo-status-title" class="font-black text-sm uppercase tracking-wider">Veículos</h3>
+                        <p id="photo-status-subtitle" class="text-[10px] text-slate-400 font-bold uppercase"></p>
+                    </div>
+                </div>
+                <button onclick="closePhotoStatusModal()" class="text-slate-400 hover:text-red-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 mb-3">
+                <div class="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
+                    <span class="block text-[8px] font-black text-slate-400 uppercase">Total</span>
+                    <span id="photo-status-total" class="text-lg font-black text-slate-800">0</span>
+                </div>
+                <div class="bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
+                    <span class="block text-[8px] font-black text-emerald-600 uppercase">Com imagem</span>
+                    <span id="photo-status-with" class="text-lg font-black text-emerald-700">0</span>
+                </div>
+                <div class="bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+                    <span class="block text-[8px] font-black text-red-600 uppercase">Sem imagem</span>
+                    <span id="photo-status-without" class="text-lg font-black text-red-700">0</span>
+                </div>
+            </div>
+
+            <div class="relative mb-3">
+                <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                <input id="photo-status-search" oninput="filterPhotoStatusList(this.value)" placeholder="Buscar veículo..." class="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-bold outline-none focus:border-[#E30613]">
+            </div>
+
+            <div id="photo-status-list" class="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-1"></div>
+        </div>
+    </div>
+
     <div id="toast-container" class="fixed top-14 right-6 z-[300] flex flex-col gap-2 pointer-events-none"></div>
 
     <!-- MODAL DE HISTÓRICO DE AUDITORIA -->
@@ -720,44 +761,22 @@
             return -1;
         }
 
-        function normalizarNomePasta(valor) {
-            return String(valor || '')
-                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                .toUpperCase().trim();
-        }
-
         function mapearUnidade(nomePasta) {
-            const text = normalizarNomePasta(nomePasta);
-            return ALL_UNITS.find(unit => normalizarNomePasta(unit) === text) || null;
+            const text = nomePasta.toUpperCase().trim();
+            return ALL_UNITS.find(unit => text === unit || text.includes(unit)) || null;
         }
 
-        function obterCiclosPossiveis(truck, unitHint = null) {
-            if (!truck || !Array.isArray(truck.cycleUnits)) return [];
-            const unitNormalized = unitHint ? normalizarNomePasta(unitHint) : null;
-            const candidates = [];
-            truck.cycleUnits.forEach((unit, cycleIdx) => {
-                if (!unit) return;
-                if (!unitNormalized || normalizarNomePasta(unit) === unitNormalized) {
-                    candidates.push({ cycleIdx, unit });
-                }
-            });
-            return candidates;
-        }
-
-        function escolherCicloImportacao(truck, unitHint = null) {
-            const candidates = obterCiclosPossiveis(truck, unitHint);
-            if (candidates.length === 0) return -1;
-            if (candidates.length === 1) return candidates[0].cycleIdx;
-
-            const contexto = unitHint ? ` da unidade ${unitHint}` : '';
-            const options = candidates.map(c => `${c.cycleIdx + 1} = ${cycleInfo[c.cycleIdx].label} — ${c.unit}`).join('\n');
-            const answer = window.prompt(
-                `O veículo ${truck.id}${contexto} aparece em mais de um ciclo.\n\nEscolha onde importar as fotos:\n${options}\n\nDigite 1, 2 ou 3.`,
-                String(candidates[0].cycleIdx + 1)
+        function solicitarCicloParaUnidade(unit) {
+            const resposta = prompt(
+                `A pasta da unidade "${unit}" não contém o nome do ciclo no caminho.\n\n` +
+                `Digite o ciclo ao qual TODOS os veículos desta unidade pertencem:\n` +
+                `1 = 1º Ciclo\n2 = 2º Ciclo\n3 = 3º Ciclo`
             );
-            if (answer === null) return -1;
-            const selected = Number(String(answer).trim()) - 1;
-            return candidates.some(c => c.cycleIdx === selected) ? selected : -1;
+            if (resposta === null) return -1;
+            const value = resposta.trim();
+            if (value === '1' || value === '2' || value === '3') return Number(value) - 1;
+            showToast(`Ciclo inválido para ${unit}. A importação desta unidade foi ignorada.`, "error");
+            return -1;
         }
 
         async function handleFolderBatchUpload(input) {
@@ -777,119 +796,62 @@
             showToast(`Analisando ${imageFiles.length} imagens...`);
 
             const grouped = new Map();
+            const pendingByUnit = new Map();
             const ignored = [];
-            const fleetById = new Map(rawFleetDocs.map(t => [String(t.id), t]));
-            const resolutionCache = new Map();
-
-            // Quando a raiz selecionada é uma UNIDADE (ex.: CB NORTE), todos os
-            // veículos abaixo dela vieram do mesmo pai: CICLO > UNIDADE > VEÍCULO.
-            // Como o navegador omite o pai do diretório selecionado, resolvemos o
-            // ciclo uma única vez para a unidade inteira, nunca veículo por veículo.
-            const rootParts = (imageFiles[0].webkitRelativePath || '').split('/').map(p => p.trim()).filter(Boolean);
-            const selectedRoot = rootParts[0] || '';
-            const selectedRootUnit = mapearUnidade(selectedRoot);
-            let selectedUnitCycle = -1;
-
-            if (selectedRootUnit && mapearCiclo(selectedRoot) === -1) {
-                const truckIdsInSelection = new Set();
-                imageFiles.forEach(file => {
-                    const parts = (file.webkitRelativePath || file.name).split('/').map(p => p.trim()).filter(Boolean);
-                    const id = parts.find(part => /^\d+$/.test(part));
-                    if (id && fleetById.has(String(id))) truckIdsInSelection.add(String(id));
-                });
-
-                // Procura um ciclo comum em que os veículos encontrados pertençam à unidade.
-                const possibleCycles = [0, 1, 2].filter(cycleIdx => {
-                    if (truckIdsInSelection.size === 0) return false;
-                    return [...truckIdsInSelection].every(id => {
-                        const truck = fleetById.get(id);
-                        return normalizarNomePasta(truck?.cycleUnits?.[cycleIdx]) === normalizarNomePasta(selectedRootUnit);
-                    });
-                });
-
-                if (possibleCycles.length === 1) {
-                    selectedUnitCycle = possibleCycles[0];
-                } else {
-                    // Se houver mais de uma possibilidade, pergunta UMA vez para toda a unidade.
-                    const relevantCycles = possibleCycles.length ? possibleCycles : [0, 1, 2].filter(cycleIdx =>
-                        [...truckIdsInSelection].some(id => normalizarNomePasta(fleetById.get(id)?.cycleUnits?.[cycleIdx]) === normalizarNomePasta(selectedRootUnit))
-                    );
-                    const options = relevantCycles.map(idx => `${idx + 1} = ${cycleInfo[idx].label}`).join('\n');
-                    if (options) {
-                        const answer = window.prompt(
-                            `A pasta selecionada é a unidade ${selectedRootUnit}.\nTodos os veículos desta pasta serão importados para o MESMO ciclo.\n\nEscolha o ciclo da unidade:\n${options}\n\nDigite 1, 2 ou 3.`,
-                            String(relevantCycles[0] + 1)
-                        );
-                        if (answer !== null) {
-                            const chosen = Number(String(answer).trim()) - 1;
-                            if (relevantCycles.includes(chosen)) selectedUnitCycle = chosen;
-                        }
-                    }
-                }
-
-                if (selectedUnitCycle === -1) {
-                    input.value = '';
-                    showToast(`Importação da unidade ${selectedRootUnit} cancelada: ciclo não definido.`, 'error');
-                    return;
-                }
-            }
+            const currentFleetIds = new Set(rawFleetDocs.map(t => String(t.id)));
 
             for (const file of imageFiles) {
-                const pathParts = (file.webkitRelativePath || file.name).split('/').map(p => p.trim()).filter(Boolean);
+                const pathParts = (file.webkitRelativePath || file.name).split('/');
                 let cycleIdx = -1;
-                let unitHint = null;
+                let unit = null;
                 let truckId = "";
 
-                for (const part of pathParts) {
+                for (const rawPart of pathParts) {
+                    const part = rawPart.trim();
                     if (cycleIdx === -1) cycleIdx = mapearCiclo(part);
-                    if (!unitHint) unitHint = mapearUnidade(part);
+                    if (!unit) unit = mapearUnidade(part);
                     if (/^\d+$/.test(part)) truckId = part;
                 }
 
                 if (!truckId) {
-                    ignored.push(`${file.name}: pasta do veículo não reconhecida`);
+                    ignored.push(`${file.name}: veículo não identificado`);
                     continue;
                 }
-
-                const truck = fleetById.get(String(truckId));
-                if (!truck) {
+                if (!currentFleetIds.has(String(truckId))) {
                     ignored.push(`${file.name}: veículo ${truckId} não existe em ${activeYear}`);
                     continue;
                 }
 
-                // Se a pasta selecionada não contém o ciclo (ex.: CB NORTE/123 ou apenas 123),
-                // descobre o ciclo pelo cadastro do veículo. Em caso de ambiguidade, pergunta uma
-                // única vez por veículo/unidade e reutiliza a escolha para todas as fotos.
-                if (cycleIdx === -1) {
-                    // Pasta de unidade: usa a decisão única feita para toda a pasta.
-                    // Pasta de um veículo: mantém a resolução individual, pois não há
-                    // contexto suficiente para saber de qual ciclo aquela pasta veio.
-                    if (selectedRootUnit && unitHint && normalizarNomePasta(unitHint) === normalizarNomePasta(selectedRootUnit)) {
-                        cycleIdx = selectedUnitCycle;
-                    } else {
-                        const cacheKey = `${truckId}|${unitHint || '*'}`;
-                        if (!resolutionCache.has(cacheKey)) {
-                            resolutionCache.set(cacheKey, escolherCicloImportacao(truck, unitHint));
-                        }
-                        cycleIdx = resolutionCache.get(cacheKey);
-                    }
-                }
-
-                if (cycleIdx === -1) {
-                    ignored.push(`${file.name}: ciclo não definido para o veículo ${truckId}${unitHint ? ` na unidade ${unitHint}` : ''}`);
+                // Se o ciclo já estiver no caminho (ciclo > unidade > veículo > imagem),
+                // nunca pergunta nada: o caminho já determina o ciclo.
+                if (cycleIdx !== -1) {
+                    const key = `${cycleIdx}_${truckId}`;
+                    if (!grouped.has(key)) grouped.set(key, []);
+                    grouped.get(key).push(file);
                     continue;
                 }
 
-                // Quando a unidade veio no caminho, impede importar acidentalmente para um ciclo
-                // em que o veículo pertence a outra unidade.
-                if (unitHint && normalizarNomePasta(truck.cycleUnits?.[cycleIdx]) !== normalizarNomePasta(unitHint)) {
-                    ignored.push(`${file.name}: veículo ${truckId} não pertence à unidade ${unitHint} no ${cycleInfo[cycleIdx].label}`);
+                // Caso o usuário selecione somente a pasta da unidade, perguntamos
+                // UMA única vez por unidade e aplicamos a resposta a todos os veículos.
+                if (!unit) {
+                    ignored.push(`${file.name}: unidade não reconhecida no caminho`);
                     continue;
                 }
+                if (!pendingByUnit.has(unit)) pendingByUnit.set(unit, []);
+                pendingByUnit.get(unit).push({ file, truckId });
+            }
 
-                const key = `${cycleIdx}_${truckId}`;
-                if (!grouped.has(key)) grouped.set(key, []);
-                grouped.get(key).push(file);
+            for (const [unit, entries] of pendingByUnit.entries()) {
+                const cycleIdx = solicitarCicloParaUnidade(unit);
+                if (cycleIdx === -1) {
+                    entries.forEach(({ file }) => ignored.push(`${file.name}: ciclo não definido para ${unit}`));
+                    continue;
+                }
+                entries.forEach(({ file, truckId }) => {
+                    const key = `${cycleIdx}_${truckId}`;
+                    if (!grouped.has(key)) grouped.set(key, []);
+                    grouped.get(key).push(file);
+                });
             }
 
             let imported = 0;
@@ -1026,7 +988,7 @@ function truckHasPhotoInCycle(truck, cycleIdx) {
 }
 
 // CACHE + RENDERIZAÇÃO ESTÁVEL DO DASHBOARD
-const DASHBOARD_CACHE_PREFIX = 'cb-frota-dashboard-v4:';
+const DASHBOARD_CACHE_PREFIX = 'cb-frota-dashboard-v5:';
 let lastDashboardRenderSignature = '';
 
 function getDashboardCacheKey() {
@@ -1066,7 +1028,7 @@ function calculateDashboardStats() {
     const globalWithPhoto = cycleStats.reduce((sum, cycle) => sum + cycle.withPhoto, 0);
 
     return {
-        version: 4,
+        version: 5,
         year: String(activeYear),
         totalTrucks,
         notesTrucks,
@@ -1089,7 +1051,7 @@ function saveDashboardCache(stats) {
 function loadDashboardCache() {
     try {
         const cached = JSON.parse(localStorage.getItem(getDashboardCacheKey()) || 'null');
-        if (!cached || cached.version !== 4 || String(cached.year) !== String(activeYear) || !Array.isArray(cached.cycles)) return null;
+        if (!cached || cached.version !== 5 || String(cached.year) !== String(activeYear) || !Array.isArray(cached.cycles)) return null;
         return cached;
     } catch (error) {
         console.warn('Cache do dashboard inválido:', error);
@@ -1182,7 +1144,12 @@ function renderDashboardStats(stats = null, force = false) {
                             <div>
                                 <div class="flex justify-between items-center text-[9px] font-bold text-slate-600 mb-0.5">
                                     <span>${unit}</span>
-                                    <span class="font-black text-slate-800">${photoCount}/${activeCount} no ciclo <span class="transition-colors duration-300" style="color: ${unitProgressStyle.barColor};">(${unitPercent}%)</span> <span class="text-slate-400 font-bold">• frota ${fleetCount}</span></span>
+                                    <span class="font-black text-slate-800 flex items-center gap-1.5">
+                                        <span>${photoCount}/${activeCount} no ciclo <span class="transition-colors duration-300" style="color: ${unitProgressStyle.barColor};">(${unitPercent}%)</span> <span class="text-slate-400 font-bold">• frota ${fleetCount}</span></span>
+                                        <button onclick="event.stopPropagation(); openPhotoStatusModal(${cycleIdx}, '${unit.replace(/'/g, "\'")}')" class="text-slate-400 hover:text-slate-900 transition-colors" title="Ver veículos com e sem imagem">
+                                            <i data-lucide="list-checks" class="w-3 h-3"></i>
+                                        </button>
+                                    </span>
                                 </div>
                                 <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
                                     <div class="h-full rounded-full transition-all duration-500" style="width: ${unitPercent}%; background-color: ${unitProgressStyle.barColor};"></div>
@@ -1197,6 +1164,111 @@ function renderDashboardStats(stats = null, force = false) {
     // Só troca o HTML quando os números realmente mudaram. Evita o flash visual causado por re-renderizações idênticas.
     if (breakdown.innerHTML !== nextHtml) breakdown.innerHTML = nextHtml;
     lucide.createIcons();
+}
+
+let currentPhotoStatusData = [];
+let currentPhotoStatusCycleIdx = 0;
+let currentPhotoStatusUnit = '';
+
+function closePhotoStatusModal() {
+    document.getElementById('photo-status-modal')?.classList.add('hidden');
+}
+
+function openPhotoStatusModal(cycleIdx, unit) {
+    currentPhotoStatusCycleIdx = cycleIdx;
+    currentPhotoStatusUnit = unit;
+    const vehicles = rawFleetDocs
+        .filter(truck => truck.cycleUnits && truck.cycleUnits[cycleIdx] === unit)
+        .sort((a, b) => parseInt(a.id) - parseInt(b.id));
+
+    currentPhotoStatusData = vehicles.map(truck => ({
+        id: truck.id,
+        plate: truck.plate || '',
+        model: truck.model || '',
+        hasPhoto: truckHasPhotoInCycle(truck, cycleIdx)
+    }));
+
+    const cycleLabel = cycleInfo[cycleIdx]?.label || `Ciclo ${cycleIdx + 1}`;
+    document.getElementById('photo-status-title').innerText = `${unit} • ${cycleLabel}`;
+    document.getElementById('photo-status-subtitle').innerText = `Veículos desta unidade no ciclo selecionado`;
+    document.getElementById('photo-status-total').innerText = currentPhotoStatusData.length;
+    document.getElementById('photo-status-with').innerText = currentPhotoStatusData.filter(v => v.hasPhoto).length;
+    document.getElementById('photo-status-without').innerText = currentPhotoStatusData.filter(v => !v.hasPhoto).length;
+    document.getElementById('photo-status-search').value = '';
+    renderPhotoStatusList('');
+    document.getElementById('photo-status-modal').classList.remove('hidden');
+    lucide.createIcons();
+}
+
+function filterPhotoStatusList(term) {
+    renderPhotoStatusList(term);
+}
+
+function renderPhotoStatusList(term = '') {
+    const normalized = String(term || '').trim().toUpperCase();
+    const list = currentPhotoStatusData.filter(v => {
+        if (!normalized) return true;
+        return String(v.id).toUpperCase().includes(normalized) ||
+               String(v.plate).toUpperCase().includes(normalized) ||
+               String(v.model).toUpperCase().includes(normalized);
+    });
+
+    const container = document.getElementById('photo-status-list');
+    if (!list.length) {
+        container.innerHTML = `<div class="text-center py-8 text-[10px] font-bold text-slate-400">Nenhum veículo encontrado.</div>`;
+        return;
+    }
+
+    const withPhoto = list.filter(v => v.hasPhoto);
+    const withoutPhoto = list.filter(v => !v.hasPhoto);
+
+    const renderVehicle = (vehicle) => `
+        <button onclick="goToPhotoStatusVehicle('${String(vehicle.id).replace(/'/g, "\\'")}', currentPhotoStatusCycleIdx, currentPhotoStatusUnit)" class="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border ${vehicle.hasPhoto ? 'bg-emerald-50 border-emerald-100 hover:bg-emerald-100' : 'bg-red-50 border-red-100 hover:bg-red-100'} transition-colors text-left">
+            <div class="min-w-0 flex items-center gap-2.5">
+                <div class="w-7 h-7 rounded-lg ${vehicle.hasPhoto ? 'bg-emerald-500' : 'bg-red-500'} text-white flex items-center justify-center shrink-0">
+                    <i data-lucide="${vehicle.hasPhoto ? 'check' : 'image-off'}" class="w-3.5 h-3.5"></i>
+                </div>
+                <div class="min-w-0">
+                    <div class="text-[11px] font-black text-slate-800">Veículo ${vehicle.id}</div>
+                    <div class="text-[9px] font-bold text-slate-400 truncate">${vehicle.plate || 'Sem placa'}${vehicle.model ? ` • ${vehicle.model}` : ''}</div>
+                </div>
+            </div>
+            <span class="text-[9px] font-black ${vehicle.hasPhoto ? 'text-emerald-700' : 'text-red-700'}">${vehicle.hasPhoto ? 'COM IMAGEM' : 'SEM IMAGEM'}</span>
+        </button>`;
+
+    container.innerHTML = `
+        ${withoutPhoto.length ? `
+            <div class="flex items-center gap-2 mb-1.5 mt-1">
+                <span class="text-[9px] font-black uppercase tracking-wider text-red-600">Sem imagem (${withoutPhoto.length})</span>
+                <div class="h-px bg-red-100 flex-1"></div>
+            </div>
+            ${withoutPhoto.map(renderVehicle).join('')}
+        ` : ''}
+        ${withPhoto.length ? `
+            <div class="flex items-center gap-2 mb-1.5 ${withoutPhoto.length ? 'mt-4' : 'mt-1'}">
+                <span class="text-[9px] font-black uppercase tracking-wider text-emerald-600">Com imagem (${withPhoto.length})</span>
+                <div class="h-px bg-emerald-100 flex-1"></div>
+            </div>
+            ${withPhoto.map(renderVehicle).join('')}
+        ` : ''}
+    `;
+    lucide.createIcons();
+}
+
+function goToPhotoStatusVehicle(vehicleId, cycleIdx = 0, unit = '') {
+    const truck = rawFleetDocs.find(t => String(t.id) === String(vehicleId));
+    if (!truck) return;
+    closePhotoStatusModal();
+    searchTerm = '';
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) searchInput.value = '';
+    activeUnit = unit || truck.cycleUnits?.[cycleIdx] || truck.cycleUnits?.find(Boolean) || activeUnit;
+    const list = getCurrentFilteredList();
+    const index = list.findIndex(t => String(t.id) === String(vehicleId));
+    if (index >= 0) {
+        currentIndex = index;
+        render(true);
+    }
 }
 
 function updateDashboardCacheFromCurrentFleet() {
