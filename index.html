@@ -196,44 +196,32 @@
         </div>
     </div>
 
-    <div id="photo-status-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl p-5 shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col">
-            <div class="flex justify-between items-center border-b pb-3 mb-3">
-                <div class="flex items-center gap-2 text-slate-900">
-                    <div class="bg-slate-900 p-1.5 rounded-xl text-white">
-                        <i data-lucide="list-checks" class="w-5 h-5"></i>
+    <div id="photo-status-modal" onclick="if(event.target===this) closePhotoStatusModal()" class="fixed inset-0 bg-black/65 backdrop-blur-sm z-[300] hidden flex items-center justify-center p-3 sm:p-5">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-5xl h-[min(92vh,820px)] min-h-0 flex flex-col overflow-hidden">
+            <div class="shrink-0 px-5 py-4 sm:px-6 border-b border-slate-200 bg-white">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="bg-slate-900 p-2 rounded-xl text-white shrink-0"><i data-lucide="images" class="w-5 h-5"></i></div>
+                        <div class="min-w-0">
+                            <h3 id="photo-status-title" class="font-black text-sm sm:text-base uppercase tracking-wider text-slate-900 truncate">Veículos</h3>
+                            <p id="photo-status-subtitle" class="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase mt-0.5 truncate"></p>
+                        </div>
                     </div>
-                    <div>
-                        <h3 id="photo-status-title" class="font-black text-sm uppercase tracking-wider">Veículos</h3>
-                        <p id="photo-status-subtitle" class="text-[10px] text-slate-400 font-bold uppercase"></p>
-                    </div>
+                    <button onclick="closePhotoStatusModal()" class="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-600 font-black text-[9px] uppercase tracking-wider transition-colors" title="Fechar">
+                        <i data-lucide="x" class="w-4 h-4"></i><span class="hidden sm:inline">Fechar</span>
+                    </button>
                 </div>
-                <button onclick="closePhotoStatusModal()" class="text-slate-400 hover:text-red-600">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-
-            <div class="grid grid-cols-3 gap-2 mb-3">
-                <div class="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
-                    <span class="block text-[8px] font-black text-slate-400 uppercase">Total</span>
-                    <span id="photo-status-total" class="text-lg font-black text-slate-800">0</span>
+                <div class="grid grid-cols-3 gap-2 sm:gap-3 mt-4">
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3"><span class="block text-[8px] sm:text-[9px] font-black text-slate-400 uppercase">Total</span><span id="photo-status-total" class="text-lg sm:text-xl font-black text-slate-800">0</span></div>
+                    <div class="bg-emerald-50 border border-emerald-100 rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3"><span class="block text-[8px] sm:text-[9px] font-black text-emerald-600 uppercase">Com imagem</span><span id="photo-status-with" class="text-lg sm:text-xl font-black text-emerald-700">0</span></div>
+                    <div class="bg-red-50 border border-red-100 rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3"><span class="block text-[8px] sm:text-[9px] font-black text-red-600 uppercase">Sem imagem</span><span id="photo-status-without" class="text-lg sm:text-xl font-black text-red-700">0</span></div>
                 </div>
-                <div class="bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
-                    <span class="block text-[8px] font-black text-emerald-600 uppercase">Com imagem</span>
-                    <span id="photo-status-with" class="text-lg font-black text-emerald-700">0</span>
-                </div>
-                <div class="bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-                    <span class="block text-[8px] font-black text-red-600 uppercase">Sem imagem</span>
-                    <span id="photo-status-without" class="text-lg font-black text-red-700">0</span>
+                <div class="relative mt-3">
+                    <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                    <input id="photo-status-search" oninput="filterPhotoStatusList(this.value)" placeholder="Buscar por veículo, placa ou modelo..." class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-[10px] sm:text-xs font-bold outline-none focus:border-[#E30613] focus:ring-2 focus:ring-[#E30613]/10">
                 </div>
             </div>
-
-            <div class="relative mb-3">
-                <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
-                <input id="photo-status-search" oninput="filterPhotoStatusList(this.value)" placeholder="Buscar veículo..." class="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-bold outline-none focus:border-[#E30613]">
-            </div>
-
-            <div id="photo-status-list" class="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-1"></div>
+            <div id="photo-status-list" class="flex-1 min-h-0 overflow-hidden p-4 sm:p-5 bg-slate-50"></div>
         </div>
     </div>
 
@@ -1188,6 +1176,12 @@ function closePhotoStatusModal() {
     document.getElementById('photo-status-modal')?.classList.add('hidden');
 }
 
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !document.getElementById('photo-status-modal')?.classList.contains('hidden')) {
+        closePhotoStatusModal();
+    }
+});
+
 function openPhotoStatusModal(cycleIdx, unit) {
     currentPhotoStatusCycleIdx = cycleIdx;
     currentPhotoStatusUnit = unit;
@@ -1228,44 +1222,65 @@ function renderPhotoStatusList(term = '') {
     });
 
     const container = document.getElementById('photo-status-list');
-    if (!list.length) {
-        container.innerHTML = `<div class="text-center py-8 text-[10px] font-bold text-slate-400">Nenhum veículo encontrado.</div>`;
-        return;
-    }
-
     const withPhoto = list.filter(v => v.hasPhoto);
     const withoutPhoto = list.filter(v => !v.hasPhoto);
 
+    if (!list.length) {
+        container.innerHTML = `
+            <div class="h-full flex items-center justify-center">
+                <div class="bg-white border border-slate-200 rounded-2xl px-6 py-8 text-center shadow-sm">
+                    <i data-lucide="search-x" class="w-8 h-8 mx-auto text-slate-300 mb-2"></i>
+                    <div class="text-[10px] font-black text-slate-500 uppercase">Nenhum veículo encontrado</div>
+                    <div class="text-[9px] font-bold text-slate-400 mt-1">Tente outra placa, veículo ou modelo.</div>
+                </div>
+            </div>`;
+        lucide.createIcons();
+        return;
+    }
+
     const renderVehicle = (vehicle) => `
-        <button onclick="goToPhotoStatusVehicle('${String(vehicle.id).replace(/'/g, "\\'")}', currentPhotoStatusCycleIdx, currentPhotoStatusUnit)" class="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border ${vehicle.hasPhoto ? 'bg-emerald-50 border-emerald-100 hover:bg-emerald-100' : 'bg-red-50 border-red-100 hover:bg-red-100'} transition-colors text-left">
-            <div class="min-w-0 flex items-center gap-2.5">
-                <div class="w-7 h-7 rounded-lg ${vehicle.hasPhoto ? 'bg-emerald-500' : 'bg-red-500'} text-white flex items-center justify-center shrink-0">
-                    <i data-lucide="${vehicle.hasPhoto ? 'check' : 'image-off'}" class="w-3.5 h-3.5"></i>
-                </div>
-                <div class="min-w-0">
-                    <div class="text-[11px] font-black text-slate-800">Veículo ${vehicle.id}</div>
-                    <div class="text-[9px] font-bold text-slate-400 truncate">${vehicle.plate || 'Sem placa'}${vehicle.model ? ` • ${vehicle.model}` : ''}</div>
-                </div>
+        <button onclick="goToPhotoStatusVehicle('${String(vehicle.id).replace(/'/g, "\\'")}', currentPhotoStatusCycleIdx, currentPhotoStatusUnit)" class="w-full flex items-center gap-3 p-3 rounded-xl border ${vehicle.hasPhoto ? 'bg-emerald-50/80 border-emerald-200 hover:bg-emerald-100' : 'bg-red-50/80 border-red-200 hover:bg-red-100'} transition-colors text-left group">
+            <div class="w-9 h-9 rounded-xl ${vehicle.hasPhoto ? 'bg-emerald-500' : 'bg-red-500'} text-white flex items-center justify-center shrink-0 shadow-sm">
+                <i data-lucide="${vehicle.hasPhoto ? 'image' : 'image-off'}" class="w-4 h-4"></i>
             </div>
-            <span class="text-[9px] font-black ${vehicle.hasPhoto ? 'text-emerald-700' : 'text-red-700'}">${vehicle.hasPhoto ? 'COM IMAGEM' : 'SEM IMAGEM'}</span>
+            <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2 min-w-0">
+                    <span class="text-[11px] font-black text-slate-800 whitespace-nowrap">Veículo ${vehicle.id}</span>
+                    <span class="text-[8px] font-black uppercase tracking-wide ${vehicle.hasPhoto ? 'text-emerald-700 bg-emerald-100' : 'text-red-700 bg-red-100'} px-1.5 py-0.5 rounded-md">${vehicle.hasPhoto ? 'Com imagem' : 'Sem imagem'}</span>
+                </div>
+                <div class="text-[9px] font-bold text-slate-500 truncate mt-0.5">${vehicle.plate || 'Sem placa'}${vehicle.model ? ` • ${vehicle.model}` : ''}</div>
+            </div>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-300 group-hover:text-slate-500 shrink-0"></i>
         </button>`;
 
+    const renderColumn = (title, count, items, type) => `
+        <section class="min-h-0 flex flex-col bg-white border ${type === 'without' ? 'border-red-200' : 'border-emerald-200'} rounded-2xl overflow-hidden shadow-sm">
+            <div class="shrink-0 px-4 py-3 ${type === 'without' ? 'bg-red-50 border-b border-red-100' : 'bg-emerald-50 border-b border-emerald-100'}">
+                <div class="flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 rounded-lg ${type === 'without' ? 'bg-red-500' : 'bg-emerald-500'} text-white flex items-center justify-center"><i data-lucide="${type === 'without' ? 'image-off' : 'image'}" class="w-3.5 h-3.5"></i></div>
+                        <div>
+                            <h4 class="text-[10px] font-black uppercase tracking-wider ${type === 'without' ? 'text-red-700' : 'text-emerald-700'}">${title}</h4>
+                            <p class="text-[8px] font-bold text-slate-400">${type === 'without' ? 'Precisam receber uma imagem' : 'Imagem cadastrada no ciclo'}</p>
+                        </div>
+                    </div>
+                    <span class="min-w-7 h-7 px-2 rounded-lg ${type === 'without' ? 'bg-red-500' : 'bg-emerald-500'} text-white flex items-center justify-center text-[10px] font-black">${count}</span>
+                </div>
+            </div>
+            <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 space-y-2">
+                ${items.length ? items.map(renderVehicle).join('') : `
+                    <div class="h-full min-h-32 flex flex-col items-center justify-center text-center px-4">
+                        <i data-lucide="${type === 'without' ? 'check-circle-2' : 'image-off'}" class="w-7 h-7 ${type === 'without' ? 'text-emerald-300' : 'text-slate-300'} mb-2"></i>
+                        <span class="text-[9px] font-black uppercase ${type === 'without' ? 'text-emerald-600' : 'text-slate-400'}">${type === 'without' ? 'Todos estão com imagem' : 'Nenhum veículo com imagem'}</span>
+                    </div>`}
+            </div>
+        </section>`;
+
     container.innerHTML = `
-        ${withoutPhoto.length ? `
-            <div class="flex items-center gap-2 mb-1.5 mt-1">
-                <span class="text-[9px] font-black uppercase tracking-wider text-red-600">Sem imagem (${withoutPhoto.length})</span>
-                <div class="h-px bg-red-100 flex-1"></div>
-            </div>
-            ${withoutPhoto.map(renderVehicle).join('')}
-        ` : ''}
-        ${withPhoto.length ? `
-            <div class="flex items-center gap-2 mb-1.5 ${withoutPhoto.length ? 'mt-4' : 'mt-1'}">
-                <span class="text-[9px] font-black uppercase tracking-wider text-emerald-600">Com imagem (${withPhoto.length})</span>
-                <div class="h-px bg-emerald-100 flex-1"></div>
-            </div>
-            ${withPhoto.map(renderVehicle).join('')}
-        ` : ''}
-    `;
+        <div class="h-full min-h-0 grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+            ${renderColumn('Sem imagem', withoutPhoto.length, withoutPhoto, 'without')}
+            ${renderColumn('Com imagem', withPhoto.length, withPhoto, 'with')}
+        </div>`;
     lucide.createIcons();
 }
 
